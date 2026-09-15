@@ -1085,11 +1085,147 @@ object BitmapUtils {
 `,
   },
   {
+    name: 'build.gradle.kts',
+    path: 'app/build.gradle.kts',
+    category: 'config',
+    language: 'gradle',
+    descriptionAr: 'ملف إعدادات البناء والمكتبات الرسمية: Jetpack Compose، و ML Kit Subject Segmentation، و Coroutines.',
+    content: `plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "com.example.depthlockscreen"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.example.depthlockscreen"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+    buildFeatures {
+        compose = true
+    }
+}
+
+dependencies {
+    // 🎨 Jetpack Compose & Material 3
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+
+    // 🧠 Google ML Kit Subject Segmentation (عزل العناصر محلياً بدون إنترنت)
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+
+    // ⚡ Kotlin Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // 🛠️ Android Core & Icons
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.compose.material:material-icons-extended")
+
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+`,
+  },
+  {
+    name: 'AndroidManifest.xml',
+    path: 'app/src/main/AndroidManifest.xml',
+    category: 'config',
+    language: 'xml',
+    descriptionAr: 'بيان التطبيق مع تسجيل خدمة WallpaperService وتنزيل نموذج الذكاء الاصطناعي تلقائياً.',
+    content: `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- تصريح ميزة الخلفية الحية والحساسات -->
+    <uses-feature
+        android:name="android.software.live_wallpaper"
+        android:required="true" />
+    <uses-feature
+        android:name="android.hardware.sensor.accelerometer"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="خلفيات القفل 3D"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.DepthLockScreen">
+
+        <!-- 🚀 إشعار خدمات Google Play بتنزيل نموذج ML Kit محلياً عند تثبيت التطبيق -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="subject_segment" />
+
+        <!-- شاشة الإعدادات والمعاينة الرئيسية -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.DepthLockScreen">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 🌟 خدمة محرك الخلفية الحية وساندوتش العمق -->
+        <service
+            android:name=".service.DepthWallpaperService"
+            android:exported="true"
+            android:label="خلفية قفل الشاشة ثلاثية الأبعاد"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/wallpaper" />
+        </service>
+
+    </application>
+
+</manifest>
+`,
+  },
+  {
     name: 'PromptGuide.md',
     path: 'Android_Studio_Master_Prompt.md',
     category: 'prompt',
     language: 'markdown',
-    descriptionAr: 'برومبت شامل جاهز لنسخه إلى مساعد Android Studio لتوليد كامل هيكل المشروع com.example.depthlockscreen.',
+    descriptionAr: 'برومبت شامل جاهز لنسخه إلى مساعد Android Studio مع تبعيات Gradle لتوليد كامل هيكل المشروع.',
     content: `# 🚀 Master Architecture Prompt: com.example.depthlockscreen
 # اسم المشروع: DepthLockScreen 3D Wallpaper
 # الحزمة الأساسية: com.example.depthlockscreen
@@ -1115,9 +1251,26 @@ com.example.depthlockscreen/
     └── BitmapUtils.kt
 \`\`\`
 
+## 📦 التبعيات المطلوبة في app/build.gradle.kts:
+\`\`\`kotlin
+dependencies {
+    // Jetpack Compose
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3")
+    
+    // Google ML Kit Subject Segmentation (فصل العناصر)
+    implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+    
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+}
+\`\`\`
+
 ## 🛠️ المواصفات الفنية:
 1. **تأثير ساندوتش العمق:** وضع طبقة الساعة (ClockConfig) بين طبقة الخلفية (Background) وطبقة العنصر المقصوص (Foreground Subject)، بحيث تحجب ملامح الشخصية جزءاً من أرقام الساعة بأسلوب Apple/Android 14 Lock Screen.
-2. **عزل أوفلاين بالذكاء الاصطناعي:** Google ML Kit Subject Segmentation API محلياً بدون إنترنت.
+2. **عزل أوفلاين بالذكاء الاصطناعي:** Google ML Kit Subject Segmentation API محلياً بدون إنترنت مع إضافة \`meta-data: com.google.mlkit.vision.DEPENDENCIES = subject_segment\` في AndroidManifest.xml.
 3. **توفير 100% للبطارية:** إلغاء تسجيل الحساسات فور إغلاق الشاشة (\`onVisibilityChanged(false)\`).
 4. **تنعيم الحركة:** تطبيق Low-Pass Filter (\`alpha = 0.12\`) على مستشعر الجيروسكوب.
 5. **الواجهات:** Jetpack Compose Material 3 مع PhotoPicker بدون أذونات تخزين حساسة.

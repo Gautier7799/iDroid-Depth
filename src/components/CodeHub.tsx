@@ -150,6 +150,7 @@ Built with Kotlin, Jetpack Compose, WallpaperService, and Google ML Kit Subject 
           <div className="flex flex-wrap gap-1.5 pb-1">
             {[
               { id: 'all', label: 'الكل' },
+              { id: 'config', label: 'الإعدادات (Gradle/Manifest)' },
               { id: 'model', label: 'النموذج (Model)' },
               { id: 'repository', label: 'المستودع (Repo)' },
               { id: 'ml', label: 'الذكاء (ML Kit)' },
