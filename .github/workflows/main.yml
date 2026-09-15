@@ -14,22 +14,24 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      # 1. سحب الكود
+      # 1. سحب كود المستودع
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. إعداد Java 17
+      # 2. إعداد بيئة Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. إعداد Android SDK الأدوات اللازمة
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # 3. تثبيت وضبط Gradle 8.5 الرسمي
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
 
-      # 4. توليد هيكل وأكواد مشروع الأندرويد تلقائياً لضمان عدم نقص أي ملف
+      # 4. توليد هيكل وأكواد مشروع الأندرويد كاملة
       - name: Scaffold Android Project
         run: |
           mkdir -p gradle/wrapper
@@ -39,6 +41,13 @@ jobs:
           mkdir -p app/src/main/java/com/example/depthlockscreen/service
           mkdir -p app/src/main/res/xml
           mkdir -p app/src/main/res/values
+
+          # قبول تراخيص Android SDK وتحديد مسار الـ SDK
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          mkdir -p "$ANDROID_HOME/licenses" || true
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_HOME/licenses/android-sdk-license"
+          echo "84831b9409646a32ee33ef4a11043e690b4f7462" >> "$ANDROID_HOME/licenses/android-sdk-license"
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license"
 
           # 1. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
@@ -60,7 +69,7 @@ jobs:
           include(":app")
           EOF
 
-          # 2. build.gradle.kts (Root)
+          # 2. build.gradle.kts (المستوى الجذري)
           cat << 'EOF' > build.gradle.kts
           plugins {
               id("com.android.application") version "8.2.2" apply false
@@ -132,13 +141,17 @@ jobs:
               implementation("androidx.activity:activity-compose:1.8.2")
               implementation(platform("androidx.compose:compose-bom:2024.02.00"))
               implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.foundation:foundation")
               implementation("androidx.compose.material3:material3")
               implementation("androidx.compose.material:material-icons-extended")
               
-              // ML Kit Segmentation
+              // Google ML Kit Subject Segmentation
               implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+              implementation("com.google.mlkit:vision-common:17.3.0")
               
-              // Coroutines
+              // Kotlin Coroutines
               implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
               implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
           }
@@ -148,14 +161,16 @@ jobs:
           cat << 'EOF' > app/src/main/res/values/strings.xml
           <resources>
               <string name="app_name">iDroid Depth</string>
+              <string name="wallpaper_author">Gautier Studio</string>
+              <string name="wallpaper_description">3D Depth Effect Live Wallpaper with Parallax and Clock</string>
           </resources>
           EOF
 
           cat << 'EOF' > app/src/main/res/xml/wallpaper.xml
           <?xml version="1.0" encoding="utf-8"?>
           <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
-              android:description="@string/app_name"
-              android:author="Gautier Studio"
+              android:description="@string/wallpaper_description"
+              android:author="@string/wallpaper_author"
               android:settingsActivity="com.example.depthlockscreen.MainActivity" />
           EOF
 
@@ -305,8 +320,6 @@ jobs:
           import android.hardware.SensorEventListener
           import android.hardware.SensorManager
           import android.os.Build
-          import android.os.Handler
-          import android.os.Looper
           import android.service.wallpaper.WallpaperService
           import android.view.SurfaceHolder
           import com.example.depthlockscreen.data.model.ClockConfig
@@ -353,7 +366,9 @@ jobs:
                   private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
 
                   private val timeTickReceiver = object : BroadcastReceiver() {
-                      override fun onReceive(context: Context?, intent: Intent?) { drawFrame() }
+                      override fun onReceive(context: Context?, intent: Intent?) { 
+                          drawFrame() 
+                      }
                   }
                   private var isReceiverRegistered = false
 
@@ -386,9 +401,9 @@ jobs:
                               addAction(Intent.ACTION_TIMEZONE_CHANGED)
                           }
                           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                              registerReceiver(timeTickReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                              this@DepthWallpaperService.registerReceiver(timeTickReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
                           } else {
-                              registerReceiver(timeTickReceiver, filter)
+                              this@DepthWallpaperService.registerReceiver(timeTickReceiver, filter)
                           }
                           isReceiverRegistered = true
                       }
@@ -396,7 +411,11 @@ jobs:
 
                   private fun unregisterTimeReceiver() {
                       if (isReceiverRegistered) {
-                          try { unregisterReceiver(timeTickReceiver) } catch (e: Exception) {}
+                          try { 
+                              this@DepthWallpaperService.unregisterReceiver(timeTickReceiver) 
+                          } catch (e: Exception) {
+                              // Ignore
+                          }
                           isReceiverRegistered = false
                       }
                   }
@@ -410,6 +429,7 @@ jobs:
                   }
 
                   override fun onSensorChanged(event: SensorEvent) {
+                      if (!isScreenVisible) return
                       if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
                           SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
                           SensorManager.getOrientation(rotationMatrix, orientationAngles)
@@ -428,20 +448,28 @@ jobs:
                           clockConfig = repository.loadSavedClockConfig()
                           backgroundBitmap = repository.loadBackgroundBitmap()
                           foregroundBitmap = repository.loadForegroundBitmap()
+                          drawFrame()
                       }
                   }
 
                   private fun drawFrame() {
+                      if (!isScreenVisible) return
                       val holder = currentHolder ?: return
                       var canvas: Canvas? = null
                       try {
                           canvas = holder.lockCanvas()
-                          if (canvas != null) renderLayers(canvas)
+                          if (canvas != null) {
+                              renderLayers(canvas)
+                          }
                       } catch (e: Exception) {
                           e.printStackTrace()
                       } finally {
                           if (canvas != null) {
-                              try { holder.unlockCanvasAndPost(canvas) } catch (e: Exception) {}
+                              try { 
+                                  holder.unlockCanvasAndPost(canvas) 
+                              } catch (e: Exception) {
+                                  e.printStackTrace()
+                              }
                           }
                       }
                   }
@@ -463,17 +491,25 @@ jobs:
                       val bg = backgroundBitmap
                       val fg = foregroundBitmap
 
-                      if (bg != null) drawScaledBitmap(canvas, bg, canvasW, canvasH, 1.15f, -offsetX * 0.35f, -offsetY * 0.35f)
-                      if (clockConfig.isClockVisible && clockConfig.isBehindSubject) drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
-                      if (fg != null) drawScaledBitmap(canvas, fg, canvasW, canvasH, 1.05f, offsetX * 0.75f, offsetY * 0.75f)
-                      if (clockConfig.isClockVisible && !clockConfig.isBehindSubject) drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                      if (bg != null) {
+                          drawScaledBitmap(canvas, bg, canvasW, canvasH, 1.15f, -offsetX * 0.35f, -offsetY * 0.35f)
+                      }
+                      if (clockConfig.isClockVisible && clockConfig.isBehindSubject) {
+                          drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                      }
+                      if (fg != null) {
+                          drawScaledBitmap(canvas, fg, canvasW, canvasH, 1.05f, offsetX * 0.75f, offsetY * 0.75f)
+                      }
+                      if (clockConfig.isClockVisible && !clockConfig.isBehindSubject) {
+                          drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                      }
                   }
 
                   private fun drawClock(canvas: Canvas, canvasW: Float, canvasH: Float, transX: Float, transY: Float) {
                       val timeFormat = if (clockConfig.is24HourFormat) "HH:mm" else "hh:mm"
                       val timeStr = SimpleDateFormat(timeFormat, Locale.getDefault()).format(Date())
                       val dateStr = SimpleDateFormat("EEEE، d MMMM", Locale("ar")).format(Date())
-                      val textSizePx = clockConfig.fontSizeSp * resources.displayMetrics.scaledDensity
+                      val textSizePx = clockConfig.fontSizeSp * this@DepthWallpaperService.resources.displayMetrics.scaledDensity
 
                       clockPaint.color = clockConfig.colorArgb
                       clockPaint.textSize = textSizePx
@@ -579,7 +615,10 @@ jobs:
                           isProcessing = true
                           try {
                               val bmp = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                                  ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it))
+                                  ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it)) { decoder, _, _ ->
+                                      decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                                      decoder.isMutableRequired = true
+                                  }
                               } else {
                                   @Suppress("DEPRECATION")
                                   MediaStore.Images.Media.getBitmap(context.contentResolver, it)
@@ -590,6 +629,8 @@ jobs:
                                   repo.saveAssets(bmp, fg, ClockConfig.DEFAULT)
                                   isReady = true
                                   Toast.makeText(context, "تم العزل والتجهيز بنجاح!", Toast.LENGTH_SHORT).show()
+                              } else {
+                                  Toast.makeText(context, "لم يتم التعرف على عنصر لعزله", Toast.LENGTH_SHORT).show()
                               }
                           } catch (e: Exception) {
                               Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -600,9 +641,17 @@ jobs:
                   }
               }
 
-              Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
+              Column(
+                  modifier = Modifier.fillMaxSize().padding(24.dp),
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  verticalArrangement = Arrangement.SpaceBetween
+              ) {
                   Text("iDroid Depth 3D", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                  Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp)), contentAlignment = Alignment.Center) {
+                  
+                  Box(
+                      modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp)),
+                      contentAlignment = Alignment.Center
+                  ) {
                       if (isProcessing) {
                           CircularProgressIndicator()
                       } else if (previewBmp != null) {
@@ -611,15 +660,26 @@ jobs:
                           Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.outline)
                       }
                   }
+
                   Column(modifier = Modifier.fillMaxWidth()) {
-                      Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
+                      Button(
+                          onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                          modifier = Modifier.fillMaxWidth().height(56.dp),
+                          shape = RoundedCornerShape(16.dp)
+                      ) {
                           Icon(Icons.Default.AutoAwesome, contentDescription = null)
                           Spacer(modifier = Modifier.width(8.dp))
                           Text("اختيار صورة وعزلها", fontWeight = FontWeight.Bold)
                       }
+
                       if (isReady) {
                           Spacer(modifier = Modifier.height(12.dp))
-                          Button(onClick = { launchWallpaper(context) }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) {
+                          Button(
+                              onClick = { launchWallpaper(context) },
+                              modifier = Modifier.fillMaxWidth().height(56.dp),
+                              shape = RoundedCornerShape(16.dp),
+                              colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                          ) {
                               Icon(Icons.Default.Wallpaper, contentDescription = null)
                               Spacer(modifier = Modifier.width(8.dp))
                               Text("تثبيت كخلفية حية لشاشة القفل", fontWeight = FontWeight.Bold)
@@ -637,20 +697,24 @@ jobs:
                   }
                   context.startActivity(intent)
               } catch (e: ActivityNotFoundException) {
-                  context.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                  try {
+                      val intent = Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER).apply {
+                          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                      }
+                      context.startActivity(intent)
+                  } catch (e2: Exception) {
+                      Toast.makeText(context, "يرجى تعيين الخلفية من إعدادات الهاتف", Toast.LENGTH_LONG).show()
+                  }
               }
           }
           EOF
 
-      # 5. تنزيل وإعداد الـ Gradle Wrapper
-      - name: Initialize Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.5
-
-      # 6. بناء ملف الـ APK
+      # 5. بناء ملف الـ APK بنمط Debug عبر Gradle المباشر
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          gradle assembleDebug --no-daemon --stacktrace
 
-      # 7. رفع ملف الـ APK الناتج للتنزيل الفوري
+      # 6. رفع ملف الـ APK الناتج للتحميل المباشر
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
