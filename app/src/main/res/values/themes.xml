@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.DepthLockScreen" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#FF030712</item>
+        <item name="android:navigationBarColor">#FF030712</item>
+        <item name="android:windowBackground">#FF030712</item>
+    </style>
+</resources>
