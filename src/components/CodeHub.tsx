@@ -151,6 +151,7 @@ Built with Kotlin, Jetpack Compose, WallpaperService, and Google ML Kit Subject 
             {[
               { id: 'all', label: 'الكل' },
               { id: 'config', label: 'الإعدادات (Gradle/Manifest)' },
+              { id: 'ci', label: 'البناء السحابي (CI/CD)' },
               { id: 'model', label: 'النموذج (Model)' },
               { id: 'repository', label: 'المستودع (Repo)' },
               { id: 'ml', label: 'الذكاء (ML Kit)' },

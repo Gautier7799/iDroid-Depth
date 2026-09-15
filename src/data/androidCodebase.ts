@@ -1,8 +1,8 @@
 export interface AndroidFile {
   name: string;
   path: string;
-  category: 'model' | 'repository' | 'ml' | 'service' | 'ui' | 'utils' | 'config' | 'prompt';
-  language: 'kotlin' | 'xml' | 'gradle' | 'markdown';
+  category: 'model' | 'repository' | 'ml' | 'service' | 'ui' | 'utils' | 'config' | 'prompt' | 'ci';
+  language: 'kotlin' | 'xml' | 'gradle' | 'markdown' | 'yaml';
   descriptionAr: string;
   content: string;
 }
@@ -1280,6 +1280,61 @@ dependencies {
 3. **توفير 100% للبطارية:** إلغاء تسجيل الحساسات فور إغلاق الشاشة (\`onVisibilityChanged(false)\`).
 4. **تنعيم الحركة:** تطبيق Low-Pass Filter (\`alpha = 0.12\`) على مستشعر الجيروسكوب.
 5. **الواجهات:** Jetpack Compose Material 3 مع PhotoPicker بدون أذونات تخزين حساسة.
+`,
+  },
+  {
+    name: 'build-apk.yml',
+    path: '.github/workflows/build-apk.yml',
+    category: 'ci',
+    language: 'yaml',
+    descriptionAr: 'مسار بناء ونشر آلي (GitHub Actions CI/CD) لتجميع ملف APK التجريبي ورفعه كـ Artifact جاهز للتحميل والتثبيت.',
+    content: `name: Build DepthFusion APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # يسمح بتشغيل الـ Build يدوياً من واجهة GitHub
+
+jobs:
+  build:
+    name: Build Android Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m"
+
+    steps:
+      # 1. سحب الكود من مستودع GitHub
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. إعداد بيئة Java (JDK 17) مع تفعيل كاش Gradle التلقائي
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      # 3. إعطاء صلاحيات التشغيل لـ Gradle Wrapper
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 4. بناء الـ APK (Debug Mode) باستخدام --no-daemon لتوفير الذاكرة ومنع أخطاء OOM
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # 5. رفع ملف الـ APK لتتمكن من تحميله مباشرة من GitHub Actions
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DepthFusion-Debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
 `,
   }
 ];
