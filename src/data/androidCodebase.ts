@@ -196,67 +196,73 @@ class WallpaperRepository(private val context: Context) {
     path: 'app/src/main/java/com/example/depthlockscreen/ml/SubjectSegmenterHelper.kt',
     category: 'ml',
     language: 'kotlin',
-    descriptionAr: 'معالجة الذكاء الاصطناعي لفصل العنصر أوفلاين عبر Google ML Kit Subject Segmentation.',
+    descriptionAr: 'معالجة الذكاء الاصطناعي لفصل موضوع الصورة أوفلاين عبر Google ML Kit مع أمان الـ Coroutines وإدارة الذاكرة.',
     content: `package com.example.depthlockscreen.ml
 
-import android.content.Context
 import android.graphics.Bitmap
-import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-data class SegmentationResult(
-    val foregroundBitmap: Bitmap?,
-    val backgroundBitmap: Bitmap,
-    val success: Boolean,
-    val error: String? = null
-)
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.Closeable
+import kotlin.coroutines.resume
 
 /**
- * 🧠 معالج الذكاء الاصطناعي لعزل العناصر محلياً (ML Kit Offline):
- * يقوم باستخراج موضوع الصورة كـ Foreground Bitmap شفاف،
- * مع الاحتفاظ بالخلفية الأصلية لاستخدامها في طبقات الـ Parallax.
+ * 🧠 معالج الذكاء الاصطناعي لعزل العناصر محلياً (ML Kit Subject Segmentation):
+ * يقوم باستخراج موضوع الصورة (الشخص، الحيوان، أو العنصر البارز) كـ Bitmap شفاف.
+ * مبني لدعم الـ Coroutines، آمن 100% ضد الإلغاء، ويحمي من تسريب الذاكرة (Memory Leaks).
  */
-class SubjectSegmenterHelper(private val context: Context) {
+class SubjectSegmenterHelper : Closeable {
 
     private val options = SubjectSegmenterOptions.Builder()
         .enableForegroundBitmap()
-        .enableForegroundConfidenceMask()
         .build()
 
-    private val client = SubjectSegmentation.getClient(options)
+    private val segmenter = SubjectSegmentation.getClient(options)
 
-    suspend fun segment(inputBitmap: Bitmap): SegmentationResult = withContext(Dispatchers.IO) {
+    /**
+     * معالجة الصورة وإرجاع العنصر المفرغ (Foreground Bitmap) أو null في حال الفشل.
+     * يستخدم suspendCancellableCoroutine مع فحص isActive لمنع أي انهيار في حال إلغاء الـ Coroutine.
+     */
+    suspend fun processImage(bitmap: Bitmap): Bitmap? = suspendCancellableCoroutine { continuation ->
         try {
-            val inputImage = InputImage.fromBitmap(inputBitmap, 0)
-            val result = Tasks.await(client.process(inputImage))
+            val image = InputImage.fromBitmap(bitmap, 0)
 
-            val foreground = result.foregroundBitmap
-            if (foreground != null) {
-                SegmentationResult(
-                    foregroundBitmap = foreground,
-                    backgroundBitmap = inputBitmap,
-                    success = true
-                )
-            } else {
-                SegmentationResult(
-                    foregroundBitmap = null,
-                    backgroundBitmap = inputBitmap,
-                    success = false,
-                    error = "تعذر تحديد موضوع بارز في الصورة."
-                )
+            segmenter.process(image)
+                .addOnSuccessListener { result ->
+                    // التأكد من أن الـ Coroutine ما زال نشطاً قبل تمرير النتيجة لمنع أخطاء IllegalStateException
+                    if (continuation.isActive) {
+                        continuation.resume(result.foregroundBitmap)
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    exception.printStackTrace()
+                    if (continuation.isActive) {
+                        continuation.resume(null)
+                    }
+                }
+
+            // تنظيف أو إلغاء في حال قام المستخدم بإلغاء العملية أثناء المعالجة
+            continuation.invokeOnCancellation {
+                // Task continues in background but continuation won't leak
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            SegmentationResult(
-                foregroundBitmap = null,
-                backgroundBitmap = inputBitmap,
-                success = false,
-                error = e.localizedMessage ?: "فشل عزل الصورة."
-            )
+            if (continuation.isActive) {
+                continuation.resume(null)
+            }
+        }
+    }
+
+    /**
+     * تحرير موارد معالج ML Kit من الذاكرة العشوائية (Native Memory)
+     * يُستدعى في onCleared() داخل الـ ViewModel لتوفير الرام والبطارية.
+     */
+    override fun close() {
+        try {
+            segmenter.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
