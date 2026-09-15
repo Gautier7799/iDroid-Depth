@@ -49,6 +49,13 @@ jobs:
           echo "84831b9409646a32ee33ef4a11043e690b4f7462" >> "$ANDROID_HOME/licenses/android-sdk-license"
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license"
 
+          # ضبط gradle.properties لتفعيل AndroidX وتحسين الذاكرة
+          cat << 'EOF' > gradle.properties
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          EOF
+
           # 1. settings.gradle.kts
           cat << 'EOF' > settings.gradle.kts
           pluginManagement {
