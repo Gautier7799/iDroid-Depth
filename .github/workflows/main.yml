@@ -13,36 +13,644 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
-    env:
-      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m"
-
     steps:
-      # 1. سحب كود المشروع من المستودع
+      # 1. سحب الكود
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2. إعداد بيئة Java 17 الحديثة
+      # 2. إعداد Java 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. إعداد بيئة Gradle الرسمية وتجاوز أي نقص في الملفات
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      # 3. إعداد Android SDK الأدوات اللازمة
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      # 4. بناء ملف الـ APK بنمط Debug وتوفير الذاكرة
-      - name: Build Debug APK
+      # 4. توليد هيكل وأكواد مشروع الأندرويد تلقائياً لضمان عدم نقص أي ملف
+      - name: Scaffold Android Project
         run: |
-          if [ -f "./gradlew" ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon --stacktrace
-          else
-            gradle assembleDebug --no-daemon --stacktrace
-          fi
+          mkdir -p gradle/wrapper
+          mkdir -p app/src/main/java/com/example/depthlockscreen/data/model
+          mkdir -p app/src/main/java/com/example/depthlockscreen/data/repository
+          mkdir -p app/src/main/java/com/example/depthlockscreen/ml
+          mkdir -p app/src/main/java/com/example/depthlockscreen/service
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/values
 
-      # 5. رفع ملف الـ APK لتنزيله وتثبيته فوراً على الهاتف
+          # 1. settings.gradle.kts
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "iDroid-Depth"
+          include(":app")
+          EOF
+
+          # 2. build.gradle.kts (Root)
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.2.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+          }
+          EOF
+
+          # 3. gradle-wrapper.properties
+          cat << 'EOF' > gradle/wrapper/gradle-wrapper.properties
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+
+          # 4. app/build.gradle.kts
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.example.depthlockscreen"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.depthlockscreen"
+                  minSdk = 26
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0.0"
+              }
+
+              buildTypes {
+                  debug {
+                      applicationIdSuffix = ".debug"
+                      isDebuggable = true
+                  }
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.8"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.core:core-ktx:1.12.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+              implementation("androidx.activity:activity-compose:1.8.2")
+              implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              
+              // ML Kit Segmentation
+              implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
+              
+              // Coroutines
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+          }
+          EOF
+
+          # 5. Strings & Wallpaper XML
+          cat << 'EOF' > app/src/main/res/values/strings.xml
+          <resources>
+              <string name="app_name">iDroid Depth</string>
+          </resources>
+          EOF
+
+          cat << 'EOF' > app/src/main/res/xml/wallpaper.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+              android:description="@string/app_name"
+              android:author="Gautier Studio"
+              android:settingsActivity="com.example.depthlockscreen.MainActivity" />
+          EOF
+
+          # 6. AndroidManifest.xml
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-feature android:name="android.software.live_wallpaper" android:required="true" />
+              <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.Material.NoActionBar">
+
+                  <meta-data
+                      android:name="com.google.mlkit.vision.DEPENDENCIES"
+                      android:value="subject_segment" />
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".service.DepthWallpaperService"
+                      android:label="@string/app_name"
+                      android:permission="android.permission.BIND_WALLPAPER"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.service.wallpaper.WallpaperService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.service.wallpaper"
+                          android:resource="@xml/wallpaper" />
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          # 7. ClockConfig.kt
+          cat << 'EOF' > app/src/main/java/com/example/depthlockscreen/data/model/ClockConfig.kt
+          package com.example.depthlockscreen.data.model
+
+          import android.graphics.Color
+
+          data class ClockConfig(
+              val isClockVisible: Boolean = true,
+              val isBehindSubject: Boolean = true,
+              val colorArgb: Int = Color.WHITE,
+              val fontSizeSp: Float = 94f,
+              val verticalBias: Float = 0.28f,
+              val is24HourFormat: Boolean = true
+          ) {
+              companion object {
+                  val DEFAULT = ClockConfig()
+              }
+          }
+          EOF
+
+          # 8. WallpaperRepository.kt
+          cat << 'EOF' > app/src/main/java/com/example/depthlockscreen/data/repository/WallpaperRepository.kt
+          package com.example.depthlockscreen.data.repository
+
+          import android.content.Context
+          import android.content.SharedPreferences
+          import android.graphics.Bitmap
+          import android.graphics.BitmapFactory
+          import android.graphics.Color
+          import com.example.depthlockscreen.data.model.ClockConfig
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.withContext
+          import java.io.File
+          import java.io.FileOutputStream
+
+          class WallpaperRepository(private val context: Context) {
+              private val prefs: SharedPreferences = context.getSharedPreferences("depth_wallpaper_prefs", Context.MODE_PRIVATE)
+
+              suspend fun saveAssets(background: Bitmap, foreground: Bitmap, config: ClockConfig) = withContext(Dispatchers.IO) {
+                  val bgFile = File(context.filesDir, "bg_layer.png")
+                  val fgFile = File(context.filesDir, "fg_subject.png")
+                  FileOutputStream(bgFile).use { background.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                  FileOutputStream(fgFile).use { foreground.compress(Bitmap.CompressFormat.PNG, 100, it) }
+              }
+
+              suspend fun loadBackgroundBitmap(): Bitmap? = withContext(Dispatchers.IO) {
+                  val file = File(context.filesDir, "bg_layer.png")
+                  if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+              }
+
+              suspend fun loadForegroundBitmap(): Bitmap? = withContext(Dispatchers.IO) {
+                  val file = File(context.filesDir, "fg_subject.png")
+                  if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+              }
+
+              fun loadSavedClockConfig(): ClockConfig = ClockConfig.DEFAULT
+          }
+          EOF
+
+          # 9. SubjectSegmenterHelper.kt
+          cat << 'EOF' > app/src/main/java/com/example/depthlockscreen/ml/SubjectSegmenterHelper.kt
+          package com.example.depthlockscreen.ml
+
+          import android.content.Context
+          import android.graphics.Bitmap
+          import com.google.mlkit.vision.common.InputImage
+          import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
+          import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
+          import kotlinx.coroutines.tasks.await
+
+          class SubjectSegmenterHelper(context: Context) {
+              private val options = SubjectSegmenterOptions.Builder()
+                  .enableForegroundBitmap()
+                  .build()
+              private val segmenter = SubjectSegmentation.getClient(options)
+
+              suspend fun extractForegroundSubject(originalBitmap: Bitmap): Bitmap? {
+                  return try {
+                      val inputImage = InputImage.fromBitmap(originalBitmap, 0)
+                      val result = segmenter.process(inputImage).await()
+                      result.foregroundBitmap
+                  } catch (e: Exception) {
+                      e.printStackTrace()
+                      null
+                  }
+              }
+          }
+          EOF
+
+          # 10. DepthWallpaperService.kt
+          cat << 'EOF' > app/src/main/java/com/example/depthlockscreen/service/DepthWallpaperService.kt
+          package com.example.depthlockscreen.service
+
+          import android.content.BroadcastReceiver
+          import android.content.Context
+          import android.content.Intent
+          import android.content.IntentFilter
+          import android.graphics.*
+          import android.hardware.Sensor
+          import android.hardware.SensorEvent
+          import android.hardware.SensorEventListener
+          import android.hardware.SensorManager
+          import android.os.Build
+          import android.os.Handler
+          import android.os.Looper
+          import android.service.wallpaper.WallpaperService
+          import android.view.SurfaceHolder
+          import com.example.depthlockscreen.data.model.ClockConfig
+          import com.example.depthlockscreen.data.repository.WallpaperRepository
+          import kotlinx.coroutines.CoroutineScope
+          import kotlinx.coroutines.Dispatchers
+          import kotlinx.coroutines.SupervisorJob
+          import kotlinx.coroutines.cancel
+          import kotlinx.coroutines.launch
+          import java.text.SimpleDateFormat
+          import java.util.*
+          import kotlin.math.max
+          import kotlin.math.sin
+
+          class DepthWallpaperService : WallpaperService() {
+              override fun onCreateEngine(): Engine = DepthEngine()
+
+              inner class DepthEngine : Engine(), SensorEventListener {
+                  private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+                  private lateinit var repository: WallpaperRepository
+                  private var currentHolder: SurfaceHolder? = null
+                  private var isScreenVisible = false
+
+                  private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
+                  private val rotationSensor by lazy {
+                      sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+                          ?: sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+                  }
+
+                  private val rotationMatrix = FloatArray(9)
+                  private val orientationAngles = FloatArray(3)
+                  private var rawRoll = 0f
+                  private var rawPitch = 0f
+                  private var smoothRoll = 0f
+                  private var smoothPitch = 0f
+                  private val filterAlpha = 0.12f
+
+                  private var backgroundBitmap: Bitmap? = null
+                  private var foregroundBitmap: Bitmap? = null
+                  private var clockConfig: ClockConfig = ClockConfig.DEFAULT
+
+                  private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+                  private val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+                  private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+                  private val timeTickReceiver = object : BroadcastReceiver() {
+                      override fun onReceive(context: Context?, intent: Intent?) { drawFrame() }
+                  }
+                  private var isReceiverRegistered = false
+
+                  override fun onCreate(holder: SurfaceHolder) {
+                      super.onCreate(holder)
+                      this.currentHolder = holder
+                      repository = WallpaperRepository(applicationContext)
+                      loadSavedAssets()
+                  }
+
+                  override fun onVisibilityChanged(visible: Boolean) {
+                      super.onVisibilityChanged(visible)
+                      this.isScreenVisible = visible
+                      if (visible) {
+                          registerTimeReceiver()
+                          rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+                          loadSavedAssets()
+                          drawFrame()
+                      } else {
+                          unregisterTimeReceiver()
+                          sensorManager.unregisterListener(this)
+                      }
+                  }
+
+                  private fun registerTimeReceiver() {
+                      if (!isReceiverRegistered) {
+                          val filter = IntentFilter().apply {
+                              addAction(Intent.ACTION_TIME_TICK)
+                              addAction(Intent.ACTION_TIME_CHANGED)
+                              addAction(Intent.ACTION_TIMEZONE_CHANGED)
+                          }
+                          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                              registerReceiver(timeTickReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                          } else {
+                              registerReceiver(timeTickReceiver, filter)
+                          }
+                          isReceiverRegistered = true
+                      }
+                  }
+
+                  private fun unregisterTimeReceiver() {
+                      if (isReceiverRegistered) {
+                          try { unregisterReceiver(timeTickReceiver) } catch (e: Exception) {}
+                          isReceiverRegistered = false
+                      }
+                  }
+
+                  override fun onSurfaceDestroyed(holder: SurfaceHolder) {
+                      super.onSurfaceDestroyed(holder)
+                      isScreenVisible = false
+                      unregisterTimeReceiver()
+                      sensorManager.unregisterListener(this)
+                      serviceScope.cancel()
+                  }
+
+                  override fun onSensorChanged(event: SensorEvent) {
+                      if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+                          SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                          SensorManager.getOrientation(rotationMatrix, orientationAngles)
+                          val targetRoll = sin(orientationAngles[2])
+                          val targetPitch = sin(orientationAngles[1])
+                          rawRoll += filterAlpha * (targetRoll - rawRoll)
+                          rawPitch += filterAlpha * (targetPitch - rawPitch)
+                          drawFrame()
+                      }
+                  }
+
+                  override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+                  private fun loadSavedAssets() {
+                      serviceScope.launch {
+                          clockConfig = repository.loadSavedClockConfig()
+                          backgroundBitmap = repository.loadBackgroundBitmap()
+                          foregroundBitmap = repository.loadForegroundBitmap()
+                      }
+                  }
+
+                  private fun drawFrame() {
+                      val holder = currentHolder ?: return
+                      var canvas: Canvas? = null
+                      try {
+                          canvas = holder.lockCanvas()
+                          if (canvas != null) renderLayers(canvas)
+                      } catch (e: Exception) {
+                          e.printStackTrace()
+                      } finally {
+                          if (canvas != null) {
+                              try { holder.unlockCanvasAndPost(canvas) } catch (e: Exception) {}
+                          }
+                      }
+                  }
+
+                  private fun renderLayers(canvas: Canvas) {
+                      val canvasW = canvas.width.toFloat()
+                      val canvasH = canvas.height.toFloat()
+                      if (canvasW <= 0 || canvasH <= 0) return
+
+                      smoothRoll += (rawRoll - smoothRoll) * 0.1f
+                      smoothPitch += (rawPitch - smoothPitch) * 0.1f
+
+                      val maxParallax = 36f
+                      val offsetX = (smoothRoll * maxParallax).coerceIn(-maxParallax, maxParallax)
+                      val offsetY = (smoothPitch * maxParallax).coerceIn(-maxParallax, maxParallax)
+
+                      canvas.drawColor(Color.BLACK)
+
+                      val bg = backgroundBitmap
+                      val fg = foregroundBitmap
+
+                      if (bg != null) drawScaledBitmap(canvas, bg, canvasW, canvasH, 1.15f, -offsetX * 0.35f, -offsetY * 0.35f)
+                      if (clockConfig.isClockVisible && clockConfig.isBehindSubject) drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                      if (fg != null) drawScaledBitmap(canvas, fg, canvasW, canvasH, 1.05f, offsetX * 0.75f, offsetY * 0.75f)
+                      if (clockConfig.isClockVisible && !clockConfig.isBehindSubject) drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                  }
+
+                  private fun drawClock(canvas: Canvas, canvasW: Float, canvasH: Float, transX: Float, transY: Float) {
+                      val timeFormat = if (clockConfig.is24HourFormat) "HH:mm" else "hh:mm"
+                      val timeStr = SimpleDateFormat(timeFormat, Locale.getDefault()).format(Date())
+                      val dateStr = SimpleDateFormat("EEEE، d MMMM", Locale("ar")).format(Date())
+                      val textSizePx = clockConfig.fontSizeSp * resources.displayMetrics.scaledDensity
+
+                      clockPaint.color = clockConfig.colorArgb
+                      clockPaint.textSize = textSizePx
+                      clockPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+
+                      datePaint.color = clockConfig.colorArgb
+                      datePaint.alpha = 210
+                      datePaint.textSize = textSizePx * 0.22f
+
+                      val centerX = (canvasW / 2f) + transX
+                      val centerY = (canvasH * clockConfig.verticalBias) + transY
+
+                      canvas.drawText(timeStr, centerX, centerY, clockPaint)
+                      canvas.drawText(dateStr, centerX, centerY + (textSizePx * 0.35f), datePaint)
+                  }
+
+                  private fun drawScaledBitmap(canvas: Canvas, bitmap: Bitmap, canvasW: Float, canvasH: Float, zoom: Float, transX: Float, transY: Float) {
+                      val bmpW = bitmap.width.toFloat()
+                      val bmpH = bitmap.height.toFloat()
+                      val scale = max(canvasW / bmpW, canvasH / bmpH) * zoom
+                      val scaledW = bmpW * scale
+                      val scaledH = bmpH * scale
+                      val left = (canvasW - scaledW) / 2f + transX
+                      val top = (canvasH - scaledH) / 2f + transY
+                      val destRect = RectF(left, top, left + scaledW, top + scaledH)
+                      val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+                      canvas.drawBitmap(bitmap, srcRect, destRect, bitmapPaint)
+                  }
+              }
+          }
+          EOF
+
+          # 11. MainActivity.kt
+          cat << 'EOF' > app/src/main/java/com/example/depthlockscreen/MainActivity.kt
+          package com.example.depthlockscreen
+
+          import android.app.WallpaperManager
+          import android.content.ActivityNotFoundException
+          import android.content.ComponentName
+          import android.content.Context
+          import android.content.Intent
+          import android.graphics.Bitmap
+          import android.graphics.ImageDecoder
+          import android.net.Uri
+          import android.os.Build
+          import android.os.Bundle
+          import android.provider.MediaStore
+          import android.widget.Toast
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.rememberLauncherForActivityResult
+          import androidx.activity.compose.setContent
+          import androidx.activity.result.PickVisualMediaRequest
+          import androidx.activity.result.contract.ActivityResultContracts
+          import androidx.compose.foundation.Image
+          import androidx.compose.foundation.background
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.AutoAwesome
+          import androidx.compose.material.icons.filled.Image
+          import androidx.compose.material.icons.filled.Wallpaper
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.asImageBitmap
+          import androidx.compose.ui.platform.LocalContext
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.unit.dp
+          import androidx.compose.ui.unit.sp
+          import com.example.depthlockscreen.data.model.ClockConfig
+          import com.example.depthlockscreen.data.repository.WallpaperRepository
+          import com.example.depthlockscreen.ml.SubjectSegmenterHelper
+          import com.example.depthlockscreen.service.DepthWallpaperService
+          import kotlinx.coroutines.launch
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme {
+                          Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                              DepthAppContent()
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun DepthAppContent() {
+              val context = LocalContext.current
+              val scope = rememberCoroutineScope()
+              val repo = remember { WallpaperRepository(context) }
+              val segmenter = remember { SubjectSegmenterHelper(context) }
+              var previewBmp by remember { mutableStateOf<Bitmap?>(null) }
+              var isProcessing by remember { mutableStateOf(false) }
+              var isReady by remember { mutableStateOf(false) }
+
+              val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+                  uri?.let {
+                      scope.launch {
+                          isProcessing = true
+                          try {
+                              val bmp = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                  ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it))
+                              } else {
+                                  @Suppress("DEPRECATION")
+                                  MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                              }
+                              previewBmp = bmp
+                              val fg = segmenter.extractForegroundSubject(bmp)
+                              if (fg != null) {
+                                  repo.saveAssets(bmp, fg, ClockConfig.DEFAULT)
+                                  isReady = true
+                                  Toast.makeText(context, "تم العزل والتجهيز بنجاح!", Toast.LENGTH_SHORT).show()
+                              }
+                          } catch (e: Exception) {
+                              Toast.makeText(context, "خطأ: ${e.message}", Toast.LENGTH_SHORT).show()
+                          } finally {
+                              isProcessing = false
+                          }
+                      }
+                  }
+              }
+
+              Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.SpaceBetween) {
+                  Text("iDroid Depth 3D", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                  Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 16.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp)), contentAlignment = Alignment.Center) {
+                      if (isProcessing) {
+                          CircularProgressIndicator()
+                      } else if (previewBmp != null) {
+                          Image(bitmap = previewBmp!!.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxSize())
+                      } else {
+                          Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.outline)
+                      }
+                  }
+                  Column(modifier = Modifier.fillMaxWidth()) {
+                      Button(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp)) {
+                          Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                          Spacer(modifier = Modifier.width(8.dp))
+                          Text("اختيار صورة وعزلها", fontWeight = FontWeight.Bold)
+                      }
+                      if (isReady) {
+                          Spacer(modifier = Modifier.height(12.dp))
+                          Button(onClick = { launchWallpaper(context) }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)) {
+                              Icon(Icons.Default.Wallpaper, contentDescription = null)
+                              Spacer(modifier = Modifier.width(8.dp))
+                              Text("تثبيت كخلفية حية لشاشة القفل", fontWeight = FontWeight.Bold)
+                          }
+                      }
+                  }
+              }
+          }
+
+          fun launchWallpaper(context: Context) {
+              try {
+                  val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                      putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, ComponentName(context, DepthWallpaperService::class.java))
+                      addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                  }
+                  context.startActivity(intent)
+              } catch (e: ActivityNotFoundException) {
+                  context.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+              }
+          }
+          EOF
+
+      # 5. تنزيل وإعداد الـ Gradle Wrapper
+      - name: Initialize Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.5
+
+      # 6. بناء ملف الـ APK
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      # 7. رفع ملف الـ APK الناتج للتنزيل الفوري
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
