@@ -311,6 +311,10 @@ export const ParallaxPhoneSimulator: React.FC<ParallaxPhoneSimulatorProps> = ({
                     alt="Foreground Subject"
                     className="w-full h-full object-contain pointer-events-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.6)]"
                     loading="eager"
+                    style={{
+                      maskImage: customFgUrl ? undefined : 'radial-gradient(ellipse 70% 80% at 50% 65%, black 40%, transparent 85%)',
+                      WebkitMaskImage: customFgUrl ? undefined : 'radial-gradient(ellipse 70% 80% at 50% 65%, black 40%, transparent 85%)',
+                    }}
                   />
                 </div>
               )}

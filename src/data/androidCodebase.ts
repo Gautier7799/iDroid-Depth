@@ -1169,22 +1169,32 @@ dependencies {
     path: 'app/src/main/AndroidManifest.xml',
     category: 'config',
     language: 'xml',
-    descriptionAr: 'بيان التطبيق مع تسجيل خدمة WallpaperService وتنزيل نموذج الذكاء الاصطناعي تلقائياً.',
+    descriptionAr: 'بيان التطبيق مع أذونات الاستقرار لمنع القفل المفاجئ، دعم البطارية والعتاد وتسجيل الخلفية الحية.',
     content: `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- تصريح ميزة الخلفية الحية والحساسات -->
+    <!-- أذونات الاستقرار ومنع توقف الخلفية في أنظمة Xiaomi و Samsung وأندرويد الحديثة -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <!-- تصريح ميزة الخلفية الحية وحساسات الحركة والجيروسكوب -->
     <uses-feature
         android:name="android.software.live_wallpaper"
         android:required="true" />
     <uses-feature
         android:name="android.hardware.sensor.accelerometer"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.sensor.gyroscope"
+        android:required="false" />
 
     <application
         android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
         android:icon="@mipmap/ic_launcher"
         android:label="خلفيات القفل 3D"
         android:roundIcon="@mipmap/ic_launcher_round"

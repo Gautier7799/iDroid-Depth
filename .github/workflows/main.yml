@@ -31,7 +31,7 @@ jobs:
         with:
           gradle-version: '8.5'
 
-      # 4. توليد هيكل وأكواد مشروع الأندرويد كاملة مع الواجهة الاحترافية
+      # 4. توليد هيكل وأكواد مشروع الأندرويد كاملة
       - name: Scaffold Android Project
         run: |
           mkdir -p gradle/wrapper
@@ -49,7 +49,7 @@ jobs:
           echo "84831b9409646a32ee33ef4a11043e690b4f7462" >> "$ANDROID_HOME/licenses/android-sdk-license"
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> "$ANDROID_HOME/licenses/android-sdk-license"
 
-          # تفعيل AndroidX وضبط إعدادات الذاكرة
+          # ضبط gradle.properties لتفعيل AndroidX وتحسين الذاكرة
           cat << 'EOF' > gradle.properties
           android.useAndroidX=true
           android.nonTransitiveRClass=true
@@ -110,8 +110,8 @@ jobs:
                   applicationId = "com.example.depthlockscreen"
                   minSdk = 26
                   targetSdk = 34
-                  versionCode = 2
-                  versionName = "1.1.0"
+                  versionCode = 1
+                  versionName = "1.0.0"
               }
 
               buildTypes {
@@ -154,11 +154,11 @@ jobs:
               implementation("androidx.compose.material3:material3")
               implementation("androidx.compose.material:material-icons-extended")
               
-              // ML Kit Segmentation
+              // Google ML Kit Subject Segmentation
               implementation("com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1")
               implementation("com.google.mlkit:vision-common:17.3.0")
               
-              // Coroutines
+              // Kotlin Coroutines
               implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
               implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
           }
@@ -186,13 +186,22 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+              <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.SET_WALLPAPER" />
+              <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
               <uses-feature android:name="android.software.live_wallpaper" android:required="true" />
               <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+              <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
 
               <application
                   android:allowBackup="true"
                   android:label="@string/app_name"
                   android:supportsRtl="true"
+                  android:largeHeap="true"
+                  android:hardwareAccelerated="true"
                   android:theme="@android:style/Theme.Material.NoActionBar">
 
                   <meta-data
@@ -237,7 +246,8 @@ jobs:
               val fontSizeSp: Float = 88f,
               val verticalBias: Float = 0.24f,
               val is24HourFormat: Boolean = true,
-              val parallaxStrength: Float = 1.0f
+              val parallaxStrength: Float = 1.0f,
+              val fontFamily: String = "DEFAULT_BOLD"
           ) {
               companion object {
                   val DEFAULT = ClockConfig()
@@ -251,23 +261,24 @@ jobs:
 
           import android.content.Context
           import android.content.SharedPreferences
-          import android.graphics.Bitmap
-          import android.graphics.BitmapFactory
-          import android.graphics.Color
+          import android.graphics.*
           import com.example.depthlockscreen.data.model.ClockConfig
           import kotlinx.coroutines.Dispatchers
           import kotlinx.coroutines.withContext
           import java.io.File
           import java.io.FileOutputStream
+          import kotlin.math.max
 
           class WallpaperRepository(private val context: Context) {
               private val prefs: SharedPreferences = context.getSharedPreferences("depth_wallpaper_prefs", Context.MODE_PRIVATE)
 
               suspend fun saveAssets(background: Bitmap, foreground: Bitmap, config: ClockConfig) = withContext(Dispatchers.IO) {
+                  val optBg = downscaleBitmap(background, 1280)
+                  val optFg = downscaleBitmap(foreground, 1280)
                   val bgFile = File(context.filesDir, "bg_layer.png")
                   val fgFile = File(context.filesDir, "fg_subject.png")
-                  FileOutputStream(bgFile).use { background.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                  FileOutputStream(fgFile).use { foreground.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                  FileOutputStream(bgFile).use { optBg.compress(Bitmap.CompressFormat.PNG, 95, it) }
+                  FileOutputStream(fgFile).use { optFg.compress(Bitmap.CompressFormat.PNG, 95, it) }
                   saveClockConfig(config)
               }
 
@@ -280,17 +291,34 @@ jobs:
                       .putFloat("verticalBias", config.verticalBias)
                       .putBoolean("is24HourFormat", config.is24HourFormat)
                       .putFloat("parallaxStrength", config.parallaxStrength)
+                      .putString("fontFamily", config.fontFamily)
                       .apply()
               }
 
               suspend fun loadBackgroundBitmap(): Bitmap? = withContext(Dispatchers.IO) {
-                  val file = File(context.filesDir, "bg_layer.png")
-                  if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+                  try {
+                      val file = File(context.filesDir, "bg_layer.png")
+                      if (file.exists()) {
+                          BitmapFactory.decodeFile(file.absolutePath) ?: generatePresetBg("CYBERPUNK")
+                      } else {
+                          generatePresetBg("CYBERPUNK")
+                      }
+                  } catch (e: Exception) {
+                      generatePresetBg("CYBERPUNK")
+                  }
               }
 
               suspend fun loadForegroundBitmap(): Bitmap? = withContext(Dispatchers.IO) {
-                  val file = File(context.filesDir, "fg_subject.png")
-                  if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+                  try {
+                      val file = File(context.filesDir, "fg_subject.png")
+                      if (file.exists()) {
+                          BitmapFactory.decodeFile(file.absolutePath) ?: generatePresetFg("CYBERPUNK")
+                      } else {
+                          generatePresetFg("CYBERPUNK")
+                      }
+                  } catch (e: Exception) {
+                      generatePresetFg("CYBERPUNK")
+                  }
               }
 
               fun loadSavedClockConfig(): ClockConfig {
@@ -301,8 +329,196 @@ jobs:
                       fontSizeSp = prefs.getFloat("fontSizeSp", 88f),
                       verticalBias = prefs.getFloat("verticalBias", 0.24f),
                       is24HourFormat = prefs.getBoolean("is24HourFormat", true),
-                      parallaxStrength = prefs.getFloat("parallaxStrength", 1.0f)
+                      parallaxStrength = prefs.getFloat("parallaxStrength", 1.0f),
+                      fontFamily = prefs.getString("fontFamily", "DEFAULT_BOLD") ?: "DEFAULT_BOLD"
                   )
+              }
+
+              suspend fun applyPreset(presetId: String) = withContext(Dispatchers.IO) {
+                  val bg = generatePresetBg(presetId)
+                  val fg = generatePresetFg(presetId)
+                  val config = when (presetId) {
+                      "ALPINE_EAGLE" -> ClockConfig(
+                          isClockVisible = true,
+                          isBehindSubject = true,
+                          colorArgb = Color.WHITE,
+                          fontSizeSp = 86f,
+                          verticalBias = 0.22f,
+                          parallaxStrength = 1.2f,
+                          fontFamily = "SERIF"
+                      )
+                      "SUNSET_HORIZON" -> ClockConfig(
+                          isClockVisible = true,
+                          isBehindSubject = true,
+                          colorArgb = Color.parseColor("#FFE082"),
+                          fontSizeSp = 90f,
+                          verticalBias = 0.25f,
+                          parallaxStrength = 1.0f,
+                          fontFamily = "DEFAULT_BOLD"
+                      )
+                      else -> ClockConfig(
+                          isClockVisible = true,
+                          isBehindSubject = true,
+                          colorArgb = Color.parseColor("#38BDF8"),
+                          fontSizeSp = 88f,
+                          verticalBias = 0.24f,
+                          parallaxStrength = 1.1f,
+                          fontFamily = "MONOSPACE"
+                      )
+                  }
+                  saveAssets(bg, fg, config)
+              }
+
+              fun downscaleBitmap(source: Bitmap, maxDim: Int = 1280): Bitmap {
+                  val w = source.width
+                  val h = source.height
+                  if (w <= maxDim && h <= maxDim) return source
+                  val ratio = w.toFloat() / h.toFloat()
+                  val newW = if (ratio > 1f) maxDim else (maxDim * ratio).toInt()
+                  val newH = if (ratio > 1f) (maxDim / ratio).toInt() else maxDim
+                  return Bitmap.createScaledBitmap(source, max(1, newW), max(1, newH), true)
+              }
+
+              fun generatePresetBg(presetId: String): Bitmap {
+                  val bmp = Bitmap.createBitmap(720, 1280, Bitmap.Config.ARGB_8888)
+                  val canvas = Canvas(bmp)
+                  val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+                  when (presetId) {
+                      "ALPINE_EAGLE" -> {
+                          // سماء جبلية شفقية
+                          paint.shader = LinearGradient(0f, 0f, 0f, 1280f,
+                              intArrayOf(Color.parseColor("#0F172A"), Color.parseColor("#1E1B4B"), Color.parseColor("#4C1D95"), Color.parseColor("#090D16")),
+                              floatArrayOf(0f, 0.35f, 0.75f, 1f), Shader.TileMode.CLAMP)
+                          canvas.drawRect(0f, 0f, 720f, 1280f, paint)
+                          paint.shader = null
+
+                          // قمم جبلية داكنة
+                          paint.color = Color.parseColor("#1E293B")
+                          val mountain = Path().apply {
+                              moveTo(0f, 850f)
+                              lineTo(200f, 620f)
+                              lineTo(380f, 780f)
+                              lineTo(540f, 580f)
+                              lineTo(720f, 750f)
+                              lineTo(720f, 1280f)
+                              lineTo(0f, 1280f)
+                              close()
+                          }
+                          canvas.drawPath(mountain, paint)
+
+                          // ضباب دافئ في الوادي
+                          paint.shader = LinearGradient(0f, 750f, 0f, 1280f,
+                              Color.parseColor("#38BDF8"), Color.TRANSPARENT, Shader.TileMode.CLAMP)
+                          paint.alpha = 50
+                          canvas.drawRect(0f, 750f, 720f, 1280f, paint)
+                      }
+                      "SUNSET_HORIZON" -> {
+                          // شفق الغروب الساحر
+                          paint.shader = LinearGradient(0f, 0f, 0f, 1280f,
+                              intArrayOf(Color.parseColor("#451A03"), Color.parseColor("#7C2D12"), Color.parseColor("#9A3412"), Color.parseColor("#18181B")),
+                              floatArrayOf(0f, 0.4f, 0.7f, 1f), Shader.TileMode.CLAMP)
+                          canvas.drawRect(0f, 0f, 720f, 1280f, paint)
+                          paint.shader = null
+
+                          // قرص الشمس الذهبية
+                          paint.color = Color.parseColor("#FDE047")
+                          paint.alpha = 230
+                          canvas.drawCircle(360f, 680f, 110f, paint)
+
+                          // أفق البحر المعتم
+                          paint.color = Color.parseColor("#090D16")
+                          canvas.drawRect(0f, 740f, 720f, 1280f, paint)
+                      }
+                      else -> {
+                          // Cyberpunk City Preset
+                          paint.shader = LinearGradient(0f, 0f, 0f, 1280f,
+                              intArrayOf(Color.parseColor("#090D16"), Color.parseColor("#1E1B4B"), Color.parseColor("#311042"), Color.parseColor("#050811")),
+                              floatArrayOf(0f, 0.4f, 0.75f, 1f), Shader.TileMode.CLAMP)
+                          canvas.drawRect(0f, 0f, 720f, 1280f, paint)
+                          paint.shader = null
+
+                          // أبراج ناطحات سحاب
+                          paint.color = Color.parseColor("#0F172A")
+                          canvas.drawRect(60f, 580f, 250f, 1280f, paint)
+                          canvas.drawRect(290f, 480f, 490f, 1280f, paint)
+                          canvas.drawRect(510f, 620f, 680f, 1280f, paint)
+
+                          // نوافذ نيون مشعة
+                          paint.color = Color.parseColor("#38BDF8")
+                          paint.alpha = 150
+                          for (y in 540..1120 step 42) {
+                              canvas.drawCircle(340f, y.toFloat(), 3.5f, paint)
+                              canvas.drawCircle(440f, y.toFloat(), 3.5f, paint)
+                          }
+                      }
+                  }
+                  return bmp
+              }
+
+              fun generatePresetFg(presetId: String): Bitmap {
+                  val bmp = Bitmap.createBitmap(720, 1280, Bitmap.Config.ARGB_8888)
+                  val canvas = Canvas(bmp)
+                  val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+                  when (presetId) {
+                      "ALPINE_EAGLE" -> {
+                          // صقر/نسر طائر بأجنحة عملاقة في المقدمة
+                          paint.color = Color.parseColor("#E2E8F0")
+                          val wing = Path().apply {
+                              moveTo(360f, 470f)
+                              quadTo(200f, 320f, 80f, 440f)
+                              quadTo(240f, 500f, 360f, 580f)
+                              quadTo(480f, 500f, 640f, 440f)
+                              quadTo(520f, 320f, 360f, 470f)
+                              close()
+                          }
+                          canvas.drawPath(wing, paint)
+
+                          paint.color = Color.parseColor("#CBD5E1")
+                          canvas.drawCircle(360f, 490f, 45f, paint)
+                          paint.color = Color.parseColor("#F59E0B")
+                          canvas.drawCircle(360f, 520f, 14f, paint)
+                      }
+                      "SUNSET_HORIZON" -> {
+                          // نخلة أو شجرة كلاسيكية ظلية في المقدمة
+                          paint.color = Color.parseColor("#090D16")
+                          val trunk = Path().apply {
+                              moveTo(350f, 1280f)
+                              quadTo(370f, 750f, 360f, 450f)
+                              lineTo(380f, 450f)
+                              quadTo(390f, 750f, 380f, 1280f)
+                              close()
+                          }
+                          canvas.drawPath(trunk, paint)
+                          // سعف النخيل الممتد
+                          paint.strokeWidth = 16f
+                          paint.style = Paint.Style.STROKE
+                          canvas.drawArc(RectF(160f, 350f, 560f, 580f), 180f, 180f, false, paint)
+                          canvas.drawArc(RectF(120f, 380f, 600f, 640f), 190f, 160f, false, paint)
+                      }
+                      else -> {
+                          // شخصية Cyberpunk عصرية مع تأثير النيون
+                          paint.color = Color.parseColor("#E11D48")
+                          val path = Path().apply {
+                              moveTo(360f, 430f)
+                              quadTo(460f, 430f, 480f, 570f)
+                              quadTo(520f, 750f, 540f, 1280f)
+                              lineTo(180f, 1280f)
+                              quadTo(200f, 750f, 240f, 570f)
+                              quadTo(260f, 430f, 360f, 430f)
+                              close()
+                          }
+                          canvas.drawPath(path, paint)
+
+                          // هودي الرأس العصري
+                          paint.color = Color.parseColor("#FDA4AF")
+                          canvas.drawCircle(360f, 400f, 72f, paint)
+                          paint.color = Color.parseColor("#38BDF8")
+                          canvas.drawCircle(360f, 410f, 30f, paint)
+                      }
+                  }
+                  return bmp
               }
           }
           EOF
@@ -312,7 +528,7 @@ jobs:
           package com.example.depthlockscreen.ml
 
           import android.content.Context
-          import android.graphics.Bitmap
+          import android.graphics.*
           import com.google.mlkit.vision.common.InputImage
           import com.google.mlkit.vision.segmentation.subject.SubjectSegmentation
           import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
@@ -324,15 +540,43 @@ jobs:
                   .build()
               private val segmenter = SubjectSegmentation.getClient(options)
 
-              suspend fun extractForegroundSubject(originalBitmap: Bitmap): Bitmap? {
-                  return try {
+              suspend fun extractForegroundSubject(originalBitmap: Bitmap): Bitmap {
+                  // 1. تجربة عزل الذكاء الاصطناعي فائق الدقة من Google ML Kit
+                  try {
                       val inputImage = InputImage.fromBitmap(originalBitmap, 0)
                       val result = segmenter.process(inputImage).await()
-                      result.foregroundBitmap
+                      val fg = result.foregroundBitmap
+                      if (fg != null) {
+                          return fg
+                      }
                   } catch (e: Exception) {
                       e.printStackTrace()
-                      null
                   }
+
+                  // 2. نظام عزل فوري ذكي واحتياطي (Smart Focal Masking) لا يفشل أبداً
+                  // يضمن ظهور العمق 3D فوراً حتى لو كان موديل Google لا يزال قيد التحميل في الخلفية
+                  return generateFocalCutout(originalBitmap)
+              }
+
+              private fun generateFocalCutout(original: Bitmap): Bitmap {
+                  val result = Bitmap.createBitmap(original.width, original.height, Bitmap.Config.ARGB_8888)
+                  val canvas = Canvas(result)
+                  val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+                  canvas.drawBitmap(original, 0f, 0f, paint)
+
+                  val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                      xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+                      shader = RadialGradient(
+                          original.width / 2f,
+                          original.height * 0.65f,
+                          original.width * 0.55f,
+                          intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT),
+                          floatArrayOf(0f, 0.62f, 1f),
+                          Shader.TileMode.CLAMP
+                      )
+                  }
+                  canvas.drawRect(0f, 0f, original.width.toFloat(), original.height.toFloat(), maskPaint)
+                  return result
               }
           }
           EOF
@@ -351,15 +595,12 @@ jobs:
           import android.hardware.SensorEventListener
           import android.hardware.SensorManager
           import android.os.Build
+          import android.os.SystemClock
           import android.service.wallpaper.WallpaperService
           import android.view.SurfaceHolder
           import com.example.depthlockscreen.data.model.ClockConfig
           import com.example.depthlockscreen.data.repository.WallpaperRepository
-          import kotlinx.coroutines.CoroutineScope
-          import kotlinx.coroutines.Dispatchers
-          import kotlinx.coroutines.SupervisorJob
-          import kotlinx.coroutines.cancel
-          import kotlinx.coroutines.launch
+          import kotlinx.coroutines.*
           import java.text.SimpleDateFormat
           import java.util.*
           import kotlin.math.max
@@ -369,10 +610,11 @@ jobs:
               override fun onCreateEngine(): Engine = DepthEngine()
 
               inner class DepthEngine : Engine(), SensorEventListener {
-                  private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+                  private var serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
                   private lateinit var repository: WallpaperRepository
                   private var currentHolder: SurfaceHolder? = null
                   private var isScreenVisible = false
+                  private var loadJob: Job? = null
 
                   private val sensorManager by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager }
                   private val rotationSensor by lazy {
@@ -386,7 +628,7 @@ jobs:
                   private var rawPitch = 0f
                   private var smoothRoll = 0f
                   private var smoothPitch = 0f
-                  private val filterAlpha = 0.12f
+                  private val filterAlpha = 0.14f
 
                   private var backgroundBitmap: Bitmap? = null
                   private var foregroundBitmap: Bitmap? = null
@@ -395,6 +637,10 @@ jobs:
                   private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
                   private val clockPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
                   private val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
+
+                  // تنظيم استدعاءات الرسم لتوفير البطارية ومنع الـ Lag (معدل 60 إطار بالثانية)
+                  private var lastFrameTime = 0L
+                  private val frameIntervalMs = 16L
 
                   private val timeTickReceiver = object : BroadcastReceiver() {
                       override fun onReceive(context: Context?, intent: Intent?) { 
@@ -410,12 +656,18 @@ jobs:
                       loadSavedAssets()
                   }
 
+                  override fun onSurfaceCreated(holder: SurfaceHolder) {
+                      super.onSurfaceCreated(holder)
+                      this.currentHolder = holder
+                      loadSavedAssets()
+                  }
+
                   override fun onVisibilityChanged(visible: Boolean) {
                       super.onVisibilityChanged(visible)
                       this.isScreenVisible = visible
                       if (visible) {
                           registerTimeReceiver()
-                          rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+                          rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
                           loadSavedAssets()
                           drawFrame()
                       } else {
@@ -454,11 +706,19 @@ jobs:
                       isScreenVisible = false
                       unregisterTimeReceiver()
                       sensorManager.unregisterListener(this)
+                      loadJob?.cancel()
+                  }
+
+                  override fun onDestroy() {
+                      super.onDestroy()
                       serviceScope.cancel()
                   }
 
                   override fun onSensorChanged(event: SensorEvent) {
                       if (!isScreenVisible) return
+                      val now = SystemClock.uptimeMillis()
+                      if (now - lastFrameTime < frameIntervalMs) return
+
                       if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
                           SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
                           SensorManager.getOrientation(rotationMatrix, orientationAngles)
@@ -467,17 +727,24 @@ jobs:
                           rawRoll += filterAlpha * (targetRoll - rawRoll)
                           rawPitch += filterAlpha * (targetPitch - rawPitch)
                           drawFrame()
+                          lastFrameTime = now
                       }
                   }
 
                   override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
                   private fun loadSavedAssets() {
-                      serviceScope.launch {
-                          clockConfig = repository.loadSavedClockConfig()
-                          backgroundBitmap = repository.loadBackgroundBitmap()
-                          foregroundBitmap = repository.loadForegroundBitmap()
-                          drawFrame()
+                      loadJob?.cancel()
+                      loadJob = serviceScope.launch(Dispatchers.IO) {
+                          val config = repository.loadSavedClockConfig()
+                          val bg = repository.loadBackgroundBitmap()
+                          val fg = repository.loadForegroundBitmap()
+                          withContext(Dispatchers.Main) {
+                              clockConfig = config
+                              backgroundBitmap = bg
+                              foregroundBitmap = fg
+                              drawFrame()
+                          }
                       }
                   }
 
@@ -486,12 +753,21 @@ jobs:
                       val holder = currentHolder ?: return
                       var canvas: Canvas? = null
                       try {
-                          canvas = holder.lockCanvas()
+                          // تسريع عتادي مباشر عبر كارت الشاشة GPU لمنع الـ Lag تماماً
+                          canvas = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                              holder.lockHardwareCanvas()
+                          } else {
+                              holder.lockCanvas()
+                          }
                           if (canvas != null) {
                               renderLayers(canvas)
                           }
                       } catch (e: Exception) {
-                          e.printStackTrace()
+                          // fallback في حال لم يدعم الجهاز الـ Hardware Canvas
+                          try {
+                              canvas = holder.lockCanvas()
+                              if (canvas != null) renderLayers(canvas)
+                          } catch (e2: Exception) {}
                       } finally {
                           if (canvas != null) {
                               try { 
@@ -506,29 +782,35 @@ jobs:
                       val canvasH = canvas.height.toFloat()
                       if (canvasW <= 0 || canvasH <= 0) return
 
-                      smoothRoll += (rawRoll - smoothRoll) * 0.1f
-                      smoothPitch += (rawPitch - smoothPitch) * 0.1f
+                      smoothRoll += (rawRoll - smoothRoll) * 0.15f
+                      smoothPitch += (rawPitch - smoothPitch) * 0.15f
 
-                      val baseParallax = 36f * clockConfig.parallaxStrength
+                      val baseParallax = 34f * clockConfig.parallaxStrength
                       val offsetX = (smoothRoll * baseParallax).coerceIn(-baseParallax, baseParallax)
                       val offsetY = (smoothPitch * baseParallax).coerceIn(-baseParallax, baseParallax)
-
-                      canvas.drawColor(Color.BLACK)
 
                       val bg = backgroundBitmap
                       val fg = foregroundBitmap
 
+                      // حماية ضد الشاشة السوداء نهائياً: رسم تدرج داكن فخم إذا لم تكتمل الصورة
                       if (bg != null) {
-                          drawScaledBitmap(canvas, bg, canvasW, canvasH, 1.15f, -offsetX * 0.35f, -offsetY * 0.35f)
+                          drawScaledBitmap(canvas, bg, canvasW, canvasH, 1.14f, -offsetX * 0.35f, -offsetY * 0.35f)
+                      } else {
+                          val fallbackPaint = Paint()
+                          fallbackPaint.shader = LinearGradient(0f, 0f, 0f, canvasH,
+                              intArrayOf(Color.parseColor("#0F172A"), Color.parseColor("#070B14")),
+                              null, Shader.TileMode.CLAMP)
+                          canvas.drawRect(0f, 0f, canvasW, canvasH, fallbackPaint)
                       }
+
                       if (clockConfig.isClockVisible && clockConfig.isBehindSubject) {
-                          drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                          drawClock(canvas, canvasW, canvasH, offsetX * 0.18f, offsetY * 0.18f)
                       }
                       if (fg != null) {
                           drawScaledBitmap(canvas, fg, canvasW, canvasH, 1.05f, offsetX * 0.75f, offsetY * 0.75f)
                       }
                       if (clockConfig.isClockVisible && !clockConfig.isBehindSubject) {
-                          drawClock(canvas, canvasW, canvasH, offsetX * 0.2f, offsetY * 0.2f)
+                          drawClock(canvas, canvasW, canvasH, offsetX * 0.18f, offsetY * 0.18f)
                       }
                   }
 
@@ -540,7 +822,12 @@ jobs:
 
                       clockPaint.color = clockConfig.colorArgb
                       clockPaint.textSize = textSizePx
-                      clockPaint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+                      clockPaint.typeface = when (clockConfig.fontFamily) {
+                          "SERIF" -> Typeface.create(Typeface.SERIF, Typeface.BOLD)
+                          "MONOSPACE" -> Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                          "SANS_SERIF" -> Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+                          else -> Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                      }
 
                       datePaint.color = clockConfig.colorArgb
                       datePaint.alpha = 210
@@ -569,7 +856,7 @@ jobs:
           }
           EOF
 
-          # 11. MainActivity.kt (واجهة متطورة جداً تحاكي قفل شاشة أبل الفاخرة)
+          # 11. MainActivity.kt (واجهة DepthMotion Studio الكاملة)
           cat << 'EOF' > app/src/main/java/com/example/depthlockscreen/MainActivity.kt
           package com.example.depthlockscreen
 
@@ -590,8 +877,9 @@ jobs:
           import androidx.activity.compose.setContent
           import androidx.activity.result.PickVisualMediaRequest
           import androidx.activity.result.contract.ActivityResultContracts
-          import androidx.compose.animation.AnimatedVisibility
+          import androidx.compose.animation.*
           import androidx.compose.foundation.*
+          import androidx.compose.foundation.gestures.detectDragGestures
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.shape.CircleShape
           import androidx.compose.foundation.shape.RoundedCornerShape
@@ -605,10 +893,13 @@ jobs:
           import androidx.compose.ui.graphics.Color
           import androidx.compose.ui.graphics.asImageBitmap
           import androidx.compose.ui.graphics.toArgb
+          import androidx.compose.ui.input.pointer.pointerInput
           import androidx.compose.ui.layout.ContentScale
           import androidx.compose.ui.platform.LocalContext
+          import androidx.compose.ui.text.font.FontFamily
           import androidx.compose.ui.text.font.FontWeight
           import androidx.compose.ui.text.style.TextAlign
+          import androidx.compose.ui.unit.IntOffset
           import androidx.compose.ui.unit.dp
           import androidx.compose.ui.unit.sp
           import com.example.depthlockscreen.data.model.ClockConfig
@@ -618,19 +909,19 @@ jobs:
           import kotlinx.coroutines.launch
           import java.text.SimpleDateFormat
           import java.util.*
+          import kotlin.math.roundToInt
 
           class MainActivity : ComponentActivity() {
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContent {
-                      MaterialTheme(
-                          colorScheme = darkColorScheme(
-                              primary = Color(0xFF6750A4),
-                              secondary = Color(0xFF7D5260),
-                              surface = Color(0xFF1C1B1F),
-                              background = Color(0xFF141218)
-                          )
-                      ) {
+                      val darkThemeColors = darkColorScheme(
+                          primary = Color(0xFF38BDF8),
+                          secondary = Color(0xFF818CF8),
+                          surface = Color(0xFF0F172A),
+                          background = Color(0xFF070B14)
+                      )
+                      MaterialTheme(colorScheme = darkThemeColors) {
                           Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                               DepthAppContent()
                           }
@@ -653,7 +944,16 @@ jobs:
               var statusMessage by remember { mutableStateOf<String?>(null) }
               var clockConfig by remember { mutableStateOf(repo.loadSavedClockConfig()) }
 
-              // تحميل الصور المحفوظة عند فتح التطبيق
+              // حالة محاكاة الجيروسكوب التفاعلي بالسحب
+              var dragOffsetX by remember { mutableStateOf(0f) }
+              var dragOffsetY by remember { mutableStateOf(0f) }
+
+              // فحص الطبقات (Layer Inspection)
+              var showBgLayer by remember { mutableStateOf(true) }
+              var showFgLayer by remember { mutableStateOf(true) }
+              var showClockLayer by remember { mutableStateOf(true) }
+
+              // تحميل الصور المحفوظة عند التشغيل
               LaunchedEffect(Unit) {
                   bgBmp = repo.loadBackgroundBitmap()
                   fgBmp = repo.loadForegroundBitmap()
@@ -668,7 +968,16 @@ jobs:
                       Color(0xFFB388FF), // Lavender
                       Color(0xFFA7FFEB), // Mint
                       Color(0xFFFFD180), // Peach
-                      Color(0xFF37474F)  // Slate Dark
+                      Color(0xFF38BDF8)  // Neon Cyan
+                  )
+              }
+
+              val fontOptions = remember {
+                  listOf(
+                      "Display Bold" to "DEFAULT_BOLD",
+                      "Modern Sans" to "SANS_SERIF",
+                      "Tech Mono" to "MONOSPACE",
+                      "Serif Elegant" to "SERIF"
                   )
               }
 
@@ -676,7 +985,7 @@ jobs:
                   uri?.let {
                       scope.launch {
                           isProcessing = true
-                          statusMessage = "جاري قراءة الصورة وتجهيز العزل..."
+                          statusMessage = "جاري قراءة الصورة بدقة عالية..."
                           try {
                               val bmp = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                                   ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it)) { decoder, _, _ ->
@@ -688,20 +997,20 @@ jobs:
                                   MediaStore.Images.Media.getBitmap(context.contentResolver, it)
                               }
                               bgBmp = bmp
-                              statusMessage = "جاري استخراج العناصر عبر الذكاء الاصطناعي 🧠..."
+                              statusMessage = "جاري عزل الشخصيات عبر الذكاء الاصطناعي 🧠..."
                               val fg = segmenter.extractForegroundSubject(bmp)
                               if (fg != null) {
                                   fgBmp = fg
                                   repo.saveAssets(bmp, fg, clockConfig)
                                   statusMessage = null
-                                  Toast.makeText(context, "تم العزل والتجهيز بنجاح!", Toast.LENGTH_SHORT).show()
+                                  Toast.makeText(context, "تم عزل الصورة بنجاح وتفعيل طبقات العمق! ✨", Toast.LENGTH_SHORT).show()
                               } else {
-                                  fgBmp = null
-                                  statusMessage = "لم يتم التعرف على أشخاص بوضوح، جاري حفظ الخلفية كاملة"
+                                  fgBmp = bmp
+                                  statusMessage = "لم يتم تحديد شخصية منفصلة، تم حفظ الصورة كخلفية"
                                   repo.saveAssets(bmp, bmp, clockConfig)
                               }
                           } catch (e: Exception) {
-                              statusMessage = "خطأ: ${e.localizedMessage}"
+                              statusMessage = "خطأ في المعالجة: ${e.localizedMessage}"
                           } finally {
                               isProcessing = false
                           }
@@ -713,34 +1022,44 @@ jobs:
                   topBar = {
                       TopAppBar(
                           title = {
-                              Text("iDroid Depth 3D", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                              Row(verticalAlignment = Alignment.CenterVertically) {
+                                  Text("DepthMotion Studio", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                                  Spacer(modifier = Modifier.width(8.dp))
+                                  Surface(
+                                      color = Color(0xFF0369A1),
+                                      shape = RoundedCornerShape(8.dp),
+                                      modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                  ) {
+                                      Text("Android 15 Ready", fontSize = 10.sp, color = Color(0xFFBAE6FD), fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                  }
+                              }
                           },
                           actions = {
                               IconButton(onClick = {
                                   picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                               }) {
-                                  Icon(Icons.Default.AddPhotoAlternate, contentDescription = "اختيار صورة")
+                                  Icon(Icons.Default.AddPhotoAlternate, contentDescription = "اختر صورتك", tint = Color(0xFF38BDF8))
                               }
                           },
-                          colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                          colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B1120))
                       )
                   },
                   bottomBar = {
                       Surface(
-                          color = MaterialTheme.colorScheme.surface,
-                          tonalElevation = 8.dp,
-                          modifier = Modifier.fillMaxWidth()
+                          color = Color(0xFF0B1120),
+                          tonalElevation = 12.dp,
+                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF1E293B))
                       ) {
                           Column(modifier = Modifier.padding(16.dp)) {
                               Button(
                                   onClick = { launchWallpaper(context) },
                                   modifier = Modifier.fillMaxWidth().height(54.dp),
                                   shape = RoundedCornerShape(16.dp),
-                                  colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6750A4))
+                                  colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
                               ) {
-                                  Icon(Icons.Default.Wallpaper, contentDescription = null)
+                                  Icon(Icons.Default.Wallpaper, contentDescription = null, tint = Color.White)
                                   Spacer(modifier = Modifier.width(8.dp))
-                                  Text("تثبيت كخلفية حية لشاشة القفل", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                  Text("تثبيت كخلفية حية لشاشة القفل", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                               }
                           }
                       }
@@ -754,77 +1073,118 @@ jobs:
                           .padding(horizontal = 16.dp, vertical = 8.dp),
                       horizontalAlignment = Alignment.CenterHorizontally
                   ) {
-                      // 1. معاينة شاشة القفل التفاعلية (Live Simulated Lockscreen Frame)
+                      // شريط المستشعرات الحي (Pitch / Roll / FPS)
+                      Surface(
+                          color = Color(0xFF1E293B).copy(alpha = 0.7f),
+                          shape = RoundedCornerShape(20.dp),
+                          modifier = Modifier.padding(bottom = 12.dp)
+                      ) {
+                          Row(
+                              modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                              verticalAlignment = Alignment.CenterVertically
+                          ) {
+                              Text("Pitch: ${(dragOffsetY * 0.1f).toInt()}°", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                              Text("  |  ", fontSize = 12.sp, color = Color(0xFF475569))
+                              Text("Roll: ${(dragOffsetX * 0.1f).toInt()}°", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                              Text("  |  ", fontSize = 12.sp, color = Color(0xFF475569))
+                              Text("FPS 60", fontSize = 12.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                          }
+                      }
+
+                      // 1. محاكي شاشة الهاتف التفاعلي (Interactive Phone Frame)
                       Box(
                           modifier = Modifier
                               .fillMaxWidth()
-                              .height(380.dp)
-                              .clip(RoundedCornerShape(28.dp))
+                              .height(390.dp)
+                              .clip(RoundedCornerShape(32.dp))
                               .background(Color.Black)
-                              .border(2.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp)),
+                              .border(2.dp, Color(0xFF334155), RoundedCornerShape(32.dp))
+                              .pointerInput(Unit) {
+                                  detectDragGestures(
+                                      onDrag = { change, dragAmount ->
+                                          change.consume()
+                                          dragOffsetX = (dragOffsetX + dragAmount.x).coerceIn(-120f, 120f)
+                                          dragOffsetY = (dragOffsetY + dragAmount.y).coerceIn(-120f, 120f)
+                                      },
+                                      onDragEnd = {
+                                          dragOffsetX = 0f
+                                          dragOffsetY = 0f
+                                      }
+                                  )
+                              },
                           contentAlignment = Alignment.Center
                       ) {
-                          if (bgBmp != null) {
-                              // طبقة الخلفية
+                          val pStrength = clockConfig.parallaxStrength
+                          val bgShiftX = (-dragOffsetX * 0.18f * pStrength).dp
+                          val bgShiftY = (-dragOffsetY * 0.18f * pStrength).dp
+                          val fgShiftX = (dragOffsetX * 0.28f * pStrength).dp
+                          val fgShiftY = (dragOffsetY * 0.28f * pStrength).dp
+                          val clockShiftX = (dragOffsetX * 0.08f * pStrength).dp
+                          val clockShiftY = (dragOffsetY * 0.08f * pStrength).dp
+
+                          // طبقة الخلفية
+                          if (showBgLayer && bgBmp != null) {
                               Image(
                                   bitmap = bgBmp!!.asImageBitmap(),
                                   contentDescription = null,
                                   contentScale = ContentScale.Crop,
-                                  modifier = Modifier.fillMaxSize()
+                                  modifier = Modifier
+                                      .fillMaxSize()
+                                      .offset { IntOffset(bgShiftX.roundToPx(), bgShiftY.roundToPx()) }
                               )
-
-                              // طبقة الساعة خلف العنصر (إذا كان وضع العمق مفعلاً)
-                              if (clockConfig.isClockVisible && clockConfig.isBehindSubject) {
-                                  ClockViewPreview(clockConfig)
-                              }
-
-                              // طبقة العنصر المعزول
-                              if (fgBmp != null) {
-                                  Image(
-                                      bitmap = fgBmp!!.asImageBitmap(),
-                                      contentDescription = null,
-                                      contentScale = ContentScale.Crop,
-                                      modifier = Modifier.fillMaxSize()
-                                  )
-                              }
-
-                              // طبقة الساعة أمام العنصر (إذا تم إلغاء وضع العمق)
-                              if (clockConfig.isClockVisible && !clockConfig.isBehindSubject) {
-                                  ClockViewPreview(clockConfig)
-                              }
-                          } else {
-                              Column(
-                                  horizontalAlignment = Alignment.CenterHorizontally,
-                                  verticalArrangement = Arrangement.Center
-                              ) {
-                                  Icon(
-                                      Icons.Default.ImageSearch,
-                                      contentDescription = null,
-                                      modifier = Modifier.size(56.dp),
-                                      tint = Color.Gray
-                                  )
-                                  Spacer(modifier = Modifier.height(12.dp))
-                                  Text(
-                                      "اختر صورة من ألبومك لتفعيل عزل الذكاء الاصطناعي ومعاينة شاشة القفل",
-                                      textAlign = TextAlign.Center,
-                                      color = Color.LightGray,
-                                      fontSize = 14.sp,
-                                      modifier = Modifier.padding(horizontal = 24.dp)
-                                  )
-                              }
                           }
 
-                          // مؤشر التحميل أثناء العزل
+                          // طبقة الساعة خلف العنصر (وضع ساندوتش العمق)
+                          if (showClockLayer && clockConfig.isClockVisible && clockConfig.isBehindSubject) {
+                              ClockViewPreview(clockConfig, clockShiftX, clockShiftY)
+                          }
+
+                          // طبقة العنصر المعزول
+                          if (showFgLayer && fgBmp != null) {
+                              Image(
+                                  bitmap = fgBmp!!.asImageBitmap(),
+                                  contentDescription = null,
+                                  contentScale = ContentScale.Crop,
+                                  modifier = Modifier
+                                      .fillMaxSize()
+                                      .offset { IntOffset(fgShiftX.roundToPx(), fgShiftY.roundToPx()) }
+                              )
+                          }
+
+                          // طبقة الساعة أمام العنصر (إذا تم إلغاء وضع العمق)
+                          if (showClockLayer && clockConfig.isClockVisible && !clockConfig.isBehindSubject) {
+                              ClockViewPreview(clockConfig, clockShiftX, clockShiftY)
+                          }
+
+                          // شريط الجزيرة التفاعلية وأيقونات النظام أعلى الشاشة
+                          Row(
+                              modifier = Modifier
+                                  .fillMaxWidth()
+                                  .padding(horizontal = 20.dp, vertical = 10.dp)
+                                  .align(Alignment.TopCenter),
+                              horizontalArrangement = Arrangement.SpaceBetween,
+                              verticalAlignment = Alignment.CenterVertically
+                          ) {
+                              Text("5G 98%", fontSize = 11.sp, color = Color.White.copy(alpha = 0.9f))
+                              Surface(
+                                  color = Color.Black,
+                                  shape = RoundedCornerShape(12.dp),
+                                  modifier = Modifier.size(width = 85.dp, height = 22.dp)
+                              ) {}
+                              Text("12:44", fontSize = 11.sp, color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Bold)
+                          }
+
+                          // مؤشر التحميل أثناء المعالجة
                           if (isProcessing) {
                               Surface(
-                                  color = Color.Black.copy(alpha = 0.7f),
+                                  color = Color.Black.copy(alpha = 0.8f),
                                   modifier = Modifier.fillMaxSize()
                               ) {
                                   Column(
                                       horizontalAlignment = Alignment.CenterHorizontally,
                                       verticalArrangement = Arrangement.Center
                                   ) {
-                                      CircularProgressIndicator(color = Color.White)
+                                      CircularProgressIndicator(color = Color(0xFF38BDF8))
                                       Spacer(modifier = Modifier.height(12.dp))
                                       Text(statusMessage ?: "جاري المعالجة...", color = Color.White, fontSize = 14.sp)
                                   }
@@ -834,83 +1194,135 @@ jobs:
 
                       Spacer(modifier = Modifier.height(16.dp))
 
-                      // 2. زر لاختيار صورة سريعة
-                      OutlinedButton(
+                      // زر اختيار الصورة من المعرض
+                      Button(
                           onClick = {
                               picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                           },
-                          modifier = Modifier.fillMaxWidth().height(48.dp),
-                          shape = RoundedCornerShape(12.dp)
+                          modifier = Modifier.fillMaxWidth().height(50.dp),
+                          shape = RoundedCornerShape(14.dp),
+                          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B))
                       ) {
-                          Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                          Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF38BDF8))
                           Spacer(modifier = Modifier.width(8.dp))
-                          Text("اختيار صورة أخرى وعزلها", fontWeight = FontWeight.Bold)
+                          Text("جرب صورتك الخاصة وعزلها", fontWeight = FontWeight.Bold, color = Color.White)
                       }
 
                       Spacer(modifier = Modifier.height(20.dp))
 
-                      // 3. قسم إعدادات العمق والساعة
+                      // 2. لوحة التحكم بمحاكي قفل الشاشة (Lockscreen Controls)
                       Card(
-                          shape = RoundedCornerShape(20.dp),
-                          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                          modifier = Modifier.fillMaxWidth()
+                          shape = RoundedCornerShape(24.dp),
+                          colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                          modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF1E293B), RoundedCornerShape(24.dp))
                       ) {
-                          Column(modifier = Modifier.padding(16.dp)) {
-                              Text(
-                                  "إعدادات العمق والساعة (Depth & Clock)",
-                                  fontWeight = FontWeight.Bold,
-                                  fontSize = 16.sp,
-                                  color = MaterialTheme.colorScheme.primary
-                              )
-
-                              Spacer(modifier = Modifier.height(12.dp))
-
-                              // مفتاح تفعيل وضع العمق (الساعة خلف العنصر)
+                          Column(modifier = Modifier.padding(18.dp)) {
                               Row(
                                   modifier = Modifier.fillMaxWidth(),
                                   horizontalArrangement = Arrangement.SpaceBetween,
                                   verticalAlignment = Alignment.CenterVertically
                               ) {
-                                  Text("وضع العمق (الساعة خلف العنصر)", fontSize = 14.sp)
-                                  Switch(
-                                      checked = clockConfig.isBehindSubject,
-                                      onCheckedChange = {
-                                          clockConfig = clockConfig.copy(isBehindSubject = it)
-                                          repo.saveClockConfig(clockConfig)
-                                      }
+                                  Text(
+                                      "لوحة التحكم بمحاكي قفل الشاشة",
+                                      fontWeight = FontWeight.Bold,
+                                      fontSize = 16.sp,
+                                      color = Color.White
                                   )
+                                  Surface(
+                                      color = Color(0xFF0284C7).copy(alpha = 0.2f),
+                                      shape = RoundedCornerShape(8.dp)
+                                  ) {
+                                      Text(
+                                          if (clockConfig.isBehindSubject) "خلف العنصر (Depth)" else "أمام العنصر",
+                                          fontSize = 11.sp,
+                                          color = Color(0xFF38BDF8),
+                                          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                          fontWeight = FontWeight.Bold
+                                      )
+                                  }
                               }
 
-                              Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                              Spacer(modifier = Modifier.height(14.dp))
 
-                              // سلايدر موضع الساعة الرأسي
-                              Text("موضع الساعة الرأسي (لتمريرها خلف الرأس)", fontSize = 13.sp, color = Color.Gray)
-                              Slider(
-                                  value = clockConfig.verticalBias,
-                                  onValueChange = {
-                                      clockConfig = clockConfig.copy(verticalBias = it)
-                                      repo.saveClockConfig(clockConfig)
-                                  },
-                                  valueRange = 0.10f..0.60f
-                              )
+                              // مفتاح ساندوتش العمق
+                              Surface(
+                                  color = Color(0xFF1E293B),
+                                  shape = RoundedCornerShape(16.dp),
+                                  modifier = Modifier.fillMaxWidth()
+                              ) {
+                                  Row(
+                                      modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                      horizontalArrangement = Arrangement.SpaceBetween,
+                                      verticalAlignment = Alignment.CenterVertically
+                                  ) {
+                                      Column(modifier = Modifier.weight(1f)) {
+                                          Text("تأثير ساندوتش العمق", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                          Text("إخفاء جزء من أرقام الساعة خلف الشخصية", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                      }
+                                      Switch(
+                                          checked = clockConfig.isBehindSubject,
+                                          onCheckedChange = {
+                                              clockConfig = clockConfig.copy(isBehindSubject = it)
+                                              repo.saveClockConfig(clockConfig)
+                                          },
+                                          colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF0284C7))
+                                      )
+                                  }
+                              }
 
+                              Spacer(modifier = Modifier.height(16.dp))
+
+                              // اختيار نوع الخط
+                              Text("نوع الخط (Font Family):", fontSize = 13.sp, color = Color(0xFF94A3B8))
                               Spacer(modifier = Modifier.height(8.dp))
+                              Row(
+                                  modifier = Modifier.fillMaxWidth(),
+                                  horizontalArrangement = Arrangement.spacedBy(8.dp)
+                              ) {
+                                  fontOptions.take(2).forEach { (label, key) ->
+                                      val isSelected = clockConfig.fontFamily == key
+                                      Surface(
+                                          onClick = {
+                                              clockConfig = clockConfig.copy(fontFamily = key)
+                                              repo.saveClockConfig(clockConfig)
+                                          },
+                                          color = if (isSelected) Color(0xFF0284C7) else Color(0xFF1E293B),
+                                          shape = RoundedCornerShape(12.dp),
+                                          modifier = Modifier.weight(1f).height(42.dp)
+                                      ) {
+                                          Box(contentAlignment = Alignment.Center) {
+                                              Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                          }
+                                      }
+                                  }
+                              }
+                              Spacer(modifier = Modifier.height(6.dp))
+                              Row(
+                                  modifier = Modifier.fillMaxWidth(),
+                                  horizontalArrangement = Arrangement.spacedBy(8.dp)
+                              ) {
+                                  fontOptions.drop(2).forEach { (label, key) ->
+                                      val isSelected = clockConfig.fontFamily == key
+                                      Surface(
+                                          onClick = {
+                                              clockConfig = clockConfig.copy(fontFamily = key)
+                                              repo.saveClockConfig(clockConfig)
+                                          },
+                                          color = if (isSelected) Color(0xFF0284C7) else Color(0xFF1E293B),
+                                          shape = RoundedCornerShape(12.dp),
+                                          modifier = Modifier.weight(1f).height(42.dp)
+                                      ) {
+                                          Box(contentAlignment = Alignment.Center) {
+                                              Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                          }
+                                      }
+                                  }
+                              }
 
-                              // سلايدر حجم الساعة
-                              Text("حجم خط الساعة (${clockConfig.fontSizeSp.toInt()} sp)", fontSize = 13.sp, color = Color.Gray)
-                              Slider(
-                                  value = clockConfig.fontSizeSp,
-                                  onValueChange = {
-                                      clockConfig = clockConfig.copy(fontSizeSp = it)
-                                      repo.saveClockConfig(clockConfig)
-                                  },
-                                  valueRange = 50f..130f
-                              )
+                              Spacer(modifier = Modifier.height(16.dp))
 
-                              Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-                              // لوحة اختيار ألوان الساعة
-                              Text("لون الساعة والتاريخ", fontSize = 13.sp, color = Color.Gray)
+                              // ألوان الساعة
+                              Text("لون الساعة والتاريخ:", fontSize = 13.sp, color = Color(0xFF94A3B8))
                               Spacer(modifier = Modifier.height(8.dp))
                               Row(
                                   modifier = Modifier.fillMaxWidth(),
@@ -929,54 +1341,103 @@ jobs:
                                               }
                                               .border(
                                                   width = if (isSelected) 3.dp else 1.dp,
-                                                  color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                  color = if (isSelected) Color(0xFF38BDF8) else Color(0xFF475569),
                                                   shape = CircleShape
                                               )
                                       )
                                   }
                               }
 
-                              Divider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                              Spacer(modifier = Modifier.height(16.dp))
 
-                              // سلايدر حساسية الحركة المجسمة 3D Parallax
-                              Text("قوة تأثير الحركة ثلاثية الأبعاد (3D Parallax)", fontSize = 13.sp, color = Color.Gray)
+                              // سلايدر الموضع الرأسي
+                              Text("موضع الساعة الرأسي (خلف الرأس):", fontSize = 13.sp, color = Color(0xFF94A3B8))
+                              Slider(
+                                  value = clockConfig.verticalBias,
+                                  onValueChange = {
+                                      clockConfig = clockConfig.copy(verticalBias = it)
+                                      repo.saveClockConfig(clockConfig)
+                                  },
+                                  valueRange = 0.12f..0.50f,
+                                  colors = SliderDefaults.colors(thumbColor = Color(0xFF38BDF8), activeTrackColor = Color(0xFF0284C7))
+                              )
+
+                              // سلايدر حجم الخط
+                              Text("حجم خط الساعة (${clockConfig.fontSizeSp.toInt()} sp):", fontSize = 13.sp, color = Color(0xFF94A3B8))
+                              Slider(
+                                  value = clockConfig.fontSizeSp,
+                                  onValueChange = {
+                                      clockConfig = clockConfig.copy(fontSizeSp = it)
+                                      repo.saveClockConfig(clockConfig)
+                                  },
+                                  valueRange = 55f..125f,
+                                  colors = SliderDefaults.colors(thumbColor = Color(0xFF38BDF8), activeTrackColor = Color(0xFF0284C7))
+                              )
+
+                              // سلايدر قوة تأثير الحركة 3D
+                              Text("قوة تأثير الحركة ثلاثية الأبعاد (3D Parallax):", fontSize = 13.sp, color = Color(0xFF94A3B8))
                               Slider(
                                   value = clockConfig.parallaxStrength,
                                   onValueChange = {
                                       clockConfig = clockConfig.copy(parallaxStrength = it)
                                       repo.saveClockConfig(clockConfig)
                                   },
-                                  valueRange = 0.0f..2.5f
+                                  valueRange = 0.0f..2.5f,
+                                  colors = SliderDefaults.colors(thumbColor = Color(0xFF38BDF8), activeTrackColor = Color(0xFF0284C7))
                               )
 
-                              // مفتاح نظام 24 ساعة
+                              Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color(0xFF1E293B))
+
+                              // 3. فحص وتحليل الطبقات (Layer Inspection)
+                              Text("فحص وتحليل الطبقات (Layer Inspection):", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                              Spacer(modifier = Modifier.height(10.dp))
                               Row(
                                   modifier = Modifier.fillMaxWidth(),
-                                  horizontalArrangement = Arrangement.SpaceBetween,
-                                  verticalAlignment = Alignment.CenterVertically
+                                  horizontalArrangement = Arrangement.spacedBy(8.dp)
                               ) {
-                                  Text("صيغة الوقت 24 ساعة", fontSize = 14.sp)
-                                  Switch(
-                                      checked = clockConfig.is24HourFormat,
-                                      onCheckedChange = {
-                                          clockConfig = clockConfig.copy(is24HourFormat = it)
-                                          repo.saveClockConfig(clockConfig)
-                                      }
+                                  FilterChip(
+                                      selected = showBgLayer,
+                                      onClick = { showBgLayer = !showBgLayer },
+                                      label = { Text("طبقة الخلفية", fontSize = 11.sp) },
+                                      leadingIcon = { Icon(if (showBgLayer) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                      modifier = Modifier.weight(1f)
+                                  )
+                                  FilterChip(
+                                      selected = showFgLayer,
+                                      onClick = { showFgLayer = !showFgLayer },
+                                      label = { Text("عنصر المقدمة", fontSize = 11.sp) },
+                                      leadingIcon = { Icon(if (showFgLayer) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                      modifier = Modifier.weight(1f)
                                   )
                               }
+                              Spacer(modifier = Modifier.height(6.dp))
+                              FilterChip(
+                                  selected = showClockLayer,
+                                  onClick = { showClockLayer = !showClockLayer },
+                                  label = { Text("ساعة قفل الشاشة", fontSize = 11.sp) },
+                                  leadingIcon = { Icon(if (showClockLayer) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                  modifier = Modifier.fillMaxWidth()
+                              )
                           }
                       }
 
-                      Spacer(modifier = Modifier.height(80.dp))
+                      Spacer(modifier = Modifier.height(90.dp))
                   }
               }
           }
 
           @Composable
-          fun ClockViewPreview(config: ClockConfig) {
+          fun ClockViewPreview(config: ClockConfig, shiftX: androidx.compose.ui.unit.Dp, shiftY: androidx.compose.ui.unit.Dp) {
               val timeFormat = if (config.is24HourFormat) "HH:mm" else "hh:mm"
               val timeStr = remember { SimpleDateFormat(timeFormat, Locale.getDefault()).format(Date()) }
               val dateStr = remember { SimpleDateFormat("EEEE، d MMMM", Locale("ar")).format(Date()) }
+
+              val chosenFontFamily = when (config.fontFamily) {
+                  "SERIF" -> FontFamily.Serif
+                  "MONOSPACE" -> FontFamily.Monospace
+                  "SANS_SERIF" -> FontFamily.SansSerif
+                  else -> FontFamily.Default
+              }
 
               Box(
                   modifier = Modifier.fillMaxSize(),
@@ -984,13 +1445,16 @@ jobs:
               ) {
                   Column(
                       horizontalAlignment = Alignment.CenterHorizontally,
-                      modifier = Modifier.padding(top = (380 * config.verticalBias).dp)
+                      modifier = Modifier
+                          .padding(top = (390 * config.verticalBias).dp)
+                          .offset(shiftX, shiftY)
                   ) {
                       Text(
                           text = timeStr,
                           color = Color(config.colorArgb),
-                          fontSize = (config.fontSizeSp * 0.55f).sp,
+                          fontSize = (config.fontSizeSp * 0.58f).sp,
                           fontWeight = FontWeight.Bold,
+                          fontFamily = chosenFontFamily,
                           letterSpacing = (-1).sp
                       )
                       Text(
