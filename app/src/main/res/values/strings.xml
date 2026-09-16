@@ -2,4 +2,6 @@
     <string name="app_name">Depth Wallpapers</string>
     <string name="wallpaper_author">Depth Studio</string>
     <string name="wallpaper_description">خلفية قفل الشاشة ثلاثية الأبعاد وساعة العمق التفاعلية - Depth Wallpapers Live Clock</string>
+    <string name="accessibility_service_name">Depth Wallpapers Service</string>
+    <string name="accessibility_service_description">خدمة متخصصة لمزامنة واجهة قفل الشاشة ثلاثية الأبعاد ومنع تداخل ساعة النظام مع خلفية العمق.</string>
 </resources>

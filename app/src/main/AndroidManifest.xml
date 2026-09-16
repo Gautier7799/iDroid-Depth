@@ -71,6 +71,20 @@
                 android:resource="@xml/wallpaper" />
         </service>
 
+        <!-- خدمة إمكانية الوصول لتظهر في إعدادات Accessibilité > Applications téléchargées -->
+        <service
+            android:name=".service.DepthAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="@string/accessibility_service_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
     </application>
 
 </manifest>
