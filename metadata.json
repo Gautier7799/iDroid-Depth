@@ -1,6 +1,6 @@
 {
-  "name": "Android 3D Depth Wallpaper Studio",
-  "description": "مواصفات وخطة بناء وتوليد كود تطبيق خلفيات أندرويد ثلاثية الأبعاد التفاعلية بتقنية ML Kit و Jetpack Compose",
+  "name": "Depth Wallpapers Live Clock",
+  "description": "تطبيق خلفيات العمق ثلاثية الأبعاد وساعة شاشة القفل التفاعلية مع محرر الاستوديو والتصنيفات وتصدير إعدادات JSON وكود Jetpack Compose الحديث",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
