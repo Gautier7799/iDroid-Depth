@@ -2,19 +2,29 @@ package com.example.depthlockscreen.data.model
 
 import android.graphics.Color
 
-/**
- * 🕰️ إعدادات وتخصيص ساعة قفل الشاشة ثلاثية الأبعاد (iOS 27 Depth Architecture):
- * تدعم التحكم بموقع الساعة بالنسبة للشخصية (ساندوتش العمق)، نوع الخط، الحجم، اللون، وقوة الحركة.
- */
 data class ClockConfig(
-    val isClockVisible: Boolean = true,
-    val isBehindSubject: Boolean = true, // ✨ ميزة العمق: الساعة تقع خلف رأس أو كتف العنصر المعزول
+    val fontSizePercent: Float = 27.1f,
+    val horizontalPosPercent: Float = 50f,
+    val verticalPosPercent: Float = 30f,
+    val fontStyle: String = "capsule", // "capsule", "outline", "condensed", "stencil", "neon", "serif"
     val colorArgb: Int = Color.WHITE,
-    val fontSizeSp: Float = 88f,
-    val verticalBias: Float = 0.22f, // 0.10f لأعلى الشاشة وحتى 0.50f لوسط الشاشة
+    val opacity: Int = 100,
+    val depthBehindSubject: Boolean = true,
+    val depthSensitivity: Int = 35,
+    val blurBackground: Int = 0,
+    val showDate: Boolean = true,
+    val customDateText: String = "25 NOV 2028",
+    val useLiveTime: Boolean = false,
+    val customTimeText: String = "02:36",
     val is24HourFormat: Boolean = true,
+    val showSeconds: Boolean = false,
+    // Backwards compatibility properties
+    val isClockVisible: Boolean = true,
+    val fontSizeSp: Float = 88f,
+    val verticalBias: Float = 0.28f,
     val parallaxStrength: Float = 1.0f,
-    val fontFamily: String = "SF_BOLD" // "SF_BOLD", "SERIF", "MONOSPACE", "ROUNDED"
+    val fontFamily: String = "capsule",
+    val isBehindSubject: Boolean = true
 ) {
     companion object {
         val DEFAULT = ClockConfig()
