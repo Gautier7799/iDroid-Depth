@@ -1,5 +1,6 @@
 import React from 'react';
 import { TabType } from '../types/wallpaper';
+import { sound } from '../utils/haptics';
 import { LayoutGrid, Image as ImageIcon, SlidersHorizontal, Sliders } from 'lucide-react';
 
 interface BottomNavBarProps {
@@ -42,7 +43,10 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           return (
             <button
               key={item.id}
-              onClick={() => onSelectTab(item.id)}
+              onClick={() => {
+                sound.playPop();
+                onSelectTab(item.id);
+              }}
               className={`relative flex items-center justify-center transition-all duration-300 rounded-full cursor-pointer ${
                 isActive
                   ? 'w-12 h-12 bg-[#FFDE00] text-black shadow-[0_0_20px_rgba(255,222,0,0.4)] scale-105'
@@ -59,3 +63,4 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
     </div>
   );
 };
+

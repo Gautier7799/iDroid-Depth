@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WallpaperItem } from '../types/wallpaper';
-import { DepthClock } from './DepthClock';
-import { Star, ArrowRight, Sparkles } from 'lucide-react';
+import { sound } from '../utils/haptics';
+import { Star, ArrowRight, Sparkles, Sliders, CheckCircle2 } from 'lucide-react';
 
 interface CollectionViewProps {
   wallpapers: WallpaperItem[];
@@ -16,108 +16,157 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
   onOpenStudio,
   onSetWallpaperDirect,
 }) => {
-  const categories: { id: string; name: string; items: WallpaperItem[] }[] = [
-    {
-      id: 'abstract',
-      name: 'Abstract',
-      items: wallpapers.filter((w) => w.category === 'Abstract'),
-    },
-    {
-      id: 'aerospace',
-      name: 'Aerospace',
-      items: wallpapers.filter((w) => w.category === 'Aerospace'),
-    },
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  const categories = [
     {
       id: 'nature',
-      name: 'Nature & Landscape',
+      name: 'Nature & Landscapes',
+      desc: 'Alpine Peaks, Wildflowers, Sunset Cabins',
       items: wallpapers.filter((w) => w.category === 'Nature'),
     },
     {
       id: 'vehicles',
-      name: 'Vehicles & Speed',
+      name: 'Supercars & Vehicles',
+      desc: 'High-speed Superbikes, Aero concepts',
       items: wallpapers.filter((w) => w.category === 'Vehicles' || w.category === 'Cyberpunk'),
     },
     {
+      id: 'aerospace',
+      name: 'Aerospace & Rockets',
+      desc: 'Orbital Shuttles, Deep Space Explorers',
+      items: wallpapers.filter((w) => w.category === 'Aerospace'),
+    },
+    {
       id: 'portraits',
-      name: 'Portraits & Noir',
+      name: 'Portraits & Noir Style',
+      desc: 'Tailored Suits, Cinema Lighting',
       items: wallpapers.filter((w) => w.category === 'Portraits'),
+    },
+    {
+      id: 'abstract',
+      name: 'Abstract 3D Geometry',
+      desc: 'Luminescent Shapes, Minimalist Solids',
+      items: wallpapers.filter((w) => w.category === 'Abstract'),
     },
   ];
 
-  return (
-    <div className="w-full min-h-screen bg-black text-white px-4 pt-6 pb-28 max-w-md mx-auto sm:max-w-lg md:max-w-2xl">
-      {/* Top Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white font-['Outfit']">
-          Collection
-        </h1>
+  const visibleCategories =
+    selectedCategory === 'all'
+      ? categories
+      : categories.filter((c) => c.id === selectedCategory);
 
-        {/* Badges top right matching Screenshot 2 */}
-        <div className="flex items-center space-x-2.5 rtl:space-x-reverse">
-          <div className="bg-[#1c1c1f] text-neutral-300 text-xs font-semibold px-3 py-1.5 rounded-full border border-neutral-700/60 flex items-center space-x-1">
-            <span>All access</span>
-          </div>
-          <button className="w-8 h-8 rounded-full flex items-center justify-center text-yellow-400">
-            <Star className="w-5 h-5 fill-yellow-400" />
-          </button>
+  return (
+    <div className="w-full min-h-screen bg-black text-white px-4 pt-6 pb-28 max-w-md mx-auto sm:max-w-lg md:max-w-2xl font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* Top Header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-white font-['Outfit']">
+            Collections
+          </h1>
+          <p className="text-[11px] font-semibold text-neutral-400">
+            Curated 3D Depth Photography Presets
+          </p>
         </div>
+
+        <div className="flex items-center space-x-2 rtl:space-x-reverse">
+          <div className="bg-[#1c1c20] text-neutral-300 text-xs font-bold px-3 py-1.5 rounded-full border border-white/10 flex items-center space-x-1">
+            <Sparkles className="w-3 h-3 text-[#FFDE00]" />
+            <span>All Access</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Pills Bar */}
+      <div className="flex items-center space-x-2 rtl:space-x-reverse overflow-x-auto pb-2 mb-5 no-scrollbar">
+        <button
+          onClick={() => {
+            sound.playPop();
+            setSelectedCategory('all');
+          }}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+            selectedCategory === 'all'
+              ? 'bg-[#FFDE00] text-black shadow-md'
+              : 'bg-[#161619] text-neutral-400 hover:text-white border border-white/5'
+          }`}
+        >
+          All Categories
+        </button>
+        {categories.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => {
+              sound.playPop();
+              setSelectedCategory(c.id);
+            }}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              selectedCategory === c.id
+                ? 'bg-[#FFDE00] text-black shadow-md'
+                : 'bg-[#161619] text-neutral-400 hover:text-white border border-white/5'
+            }`}
+          >
+            {c.name.split(' ')[0]}
+          </button>
+        ))}
       </div>
 
       {/* Categories Horizontal Sections */}
       <div className="space-y-7">
-        {categories.map((cat) => (
-          <div key={cat.id} className="space-y-3">
-            {/* Category title + View All link */}
+        {visibleCategories.map((cat) => (
+          <div key={cat.id} className="space-y-2.5">
+            {/* Category title + Count */}
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold tracking-tight text-white font-['Outfit']">
-                {cat.name}
-              </h2>
-              <button
-                onClick={() => {
-                  if (cat.items.length > 0) onSelectWallpaper(cat.items[0]);
-                }}
-                className="text-xs font-bold text-yellow-400 hover:text-yellow-300 flex items-center space-x-1 group cursor-pointer"
-              >
-                <span>View All</span>
-                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-              </button>
+              <div>
+                <h2 className="text-lg font-black tracking-tight text-white font-['Outfit']">
+                  {cat.name}
+                </h2>
+                <p className="text-[10px] text-neutral-400 font-semibold">{cat.desc}</p>
+              </div>
+              <span className="text-[10px] font-bold text-neutral-500 bg-white/5 px-2 py-0.5 rounded-full">
+                {cat.items.length} presets
+              </span>
             </div>
 
-            {/* Horizontal Scroll Carousel */}
-            <div className="flex space-x-3.5 rtl:space-x-reverse overflow-x-auto pb-2 pt-1 no-scrollbar snap-x">
+            {/* Horizontal Carousel (Zero Lag with CSS scroll snap) */}
+            <div className="flex space-x-3.5 rtl:space-x-reverse overflow-x-auto pb-3 pt-1 no-scrollbar snap-x">
               {cat.items.map((wp) => {
                 const cfg = wp.defaultConfig;
+
                 return (
                   <div
                     key={wp.id}
-                    onClick={() => onSelectWallpaper(wp)}
-                    className="relative flex-shrink-0 w-36 sm:w-40 aspect-[9/18.5] rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-yellow-400/80 transition-all cursor-pointer shadow-lg group snap-start"
+                    onClick={() => {
+                      sound.playPop();
+                      onSelectWallpaper(wp);
+                    }}
+                    className="relative flex-shrink-0 w-36 sm:w-44 aspect-[9/18] rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-yellow-400/80 transition-all cursor-pointer shadow-xl group snap-start will-change-transform"
                   >
                     {/* Background */}
                     <div
-                      className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105 will-change-transform"
                       style={{ backgroundImage: `url(${wp.bgUrl})` }}
                     />
 
-                    {/* Depth Clock */}
-                    <div className="absolute inset-0 z-10 pointer-events-none">
-                      <DepthClock
-                        fontSize={cfg.fontSize * 0.75}
-                        horizontalPos={cfg.horizontalPos}
-                        verticalPos={cfg.verticalPos}
-                        fontStyle={cfg.fontStyle}
-                        color={cfg.color}
-                        opacity={cfg.opacity}
-                        showDate={cfg.showDate}
-                        customDateText={cfg.customDateText}
-                        useLiveTime={false}
-                        customTimeText={cfg.customTimeText}
-                        is24Hour={true}
-                        showSeconds={false}
-                      />
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/75 pointer-events-none" />
+
+                    {/* Clock preview */}
+                    <div
+                      className="absolute inset-x-0 top-[26%] flex flex-col items-center justify-center text-center pointer-events-none drop-shadow-md"
+                      style={{ opacity: (cfg.opacity || 100) / 100 }}
+                    >
+                      <div className="text-[8px] font-bold tracking-widest text-white/80 uppercase">
+                        {cfg.customDateText || '25 NOV'}
+                      </div>
+                      <div
+                        className="text-2xl font-black font-['Outfit'] leading-tight"
+                        style={{ color: cfg.color }}
+                      >
+                        {cfg.customTimeText || '02:36'}
+                      </div>
                     </div>
 
-                    {/* Foreground subject layer */}
+                    {/* Foreground Subject */}
                     {wp.fgUrl && (
                       <div
                         className="absolute inset-0 z-20 bg-contain bg-bottom bg-no-repeat pointer-events-none"
@@ -128,33 +177,35 @@ export const CollectionView: React.FC<CollectionViewProps> = ({
                       />
                     )}
 
-                    {/* Title label at bottom */}
-                    <div className="absolute inset-x-0 bottom-0 z-30 p-2 bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                      <p className="text-[11px] font-semibold text-white truncate text-center">
+                    {/* Title label */}
+                    <div className="absolute inset-x-2.5 bottom-2.5 z-25">
+                      <div className="text-[11px] font-black text-white truncate drop-shadow-md">
                         {wp.title}
-                      </p>
+                      </div>
                     </div>
 
-                    {/* Hover actions */}
-                    <div className="absolute inset-0 z-40 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 space-y-2">
+                    {/* Hover Actions */}
+                    <div className="absolute inset-x-2 bottom-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col space-y-1">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onOpenStudio(wp);
+                          sound.playPop();
+                          onSetWallpaperDirect(wp);
                         }}
-                        className="w-full py-1.5 bg-[#FFDE00] text-black text-[10px] font-extrabold rounded-full flex items-center justify-center space-x-1 cursor-pointer hover:bg-yellow-300"
+                        className="w-full bg-[#FFDE00] text-black font-extrabold text-[10px] py-1.5 rounded-full flex items-center justify-center space-x-1 shadow-md cursor-pointer"
                       >
-                        <Sparkles className="w-3 h-3 fill-black" />
-                        <span>Customize</span>
+                        <Sparkles className="w-2.5 h-2.5 fill-black" />
+                        <span>Set Wallpaper</span>
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSetWallpaperDirect(wp);
+                          sound.playPop();
+                          onOpenStudio(wp);
                         }}
-                        className="w-full py-1 bg-white/20 text-white text-[10px] font-medium rounded-full hover:bg-white/30 cursor-pointer"
+                        className="w-full bg-black/80 backdrop-blur-md text-white font-bold text-[9px] py-1 rounded-full border border-white/20 text-center cursor-pointer"
                       >
-                        Quick Apply
+                        Studio ↗
                       </button>
                     </div>
                   </div>

@@ -1,6 +1,14 @@
 export type TabType = 'wallpapers' | 'collection' | 'studio' | 'settings';
 
-export type ClockFontStyle = 'capsule' | 'outline' | 'condensed' | 'stencil' | 'serif' | 'neon';
+export type ClockFontStyle =
+  | 'capsule'
+  | 'outline'
+  | 'condensed'
+  | 'stencil'
+  | 'serif'
+  | 'neon'
+  | 'digital'
+  | 'thin';
 
 export interface WallpaperItem {
   id: string;
@@ -33,6 +41,19 @@ export interface WallpaperConfig {
   is24Hour: boolean;
   showSeconds: boolean;
   blurBackground: number;
+
+  // Professional customization upgrades
+  gradientEnabled?: boolean;
+  gradientColor2?: string;
+  glowEnabled?: boolean;
+  glowIntensity?: number; // 0 to 100
+  letterSpacing?: number; // -5 to 20
+  shadowBlur?: number; // 0 to 30
+  imageFilter?: 'none' | 'cinematic' | 'bw' | 'cyberpunk' | 'warm' | 'amoled' | 'vintage';
+  topWidget?: 'date' | 'weather' | 'battery' | 'steps' | 'event' | 'none';
+  bottomWidgets?: ('battery' | 'weather' | 'activity' | 'calendar')[];
+  depthPop?: number; // 1.0 to 1.3
+  depthCutoutThreshold?: number; // 0 to 100
 }
 
 export interface AppSettings {
@@ -43,4 +64,6 @@ export interface AppSettings {
   targetFps: 60 | 120;
   hapticFeedback: boolean;
   language: 'ar' | 'en';
+  soundEffects?: boolean;
 }
+
