@@ -17,6 +17,7 @@ import {
   Code2,
   CheckCircle2,
   BatteryCharging,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -193,6 +194,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="flex items-center justify-between py-1">
                 <span>Lock Screen Clock Sync</span>
                 <span className="text-green-400 font-semibold">Real-Time Sensor Sync</span>
+              </div>
+
+              {/* Overlap Solution Guide */}
+              <div className="p-3 rounded-xl bg-[#1c1a14] border border-amber-500/30 space-y-1.5 mt-2">
+                <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>حل تداخل ساعة النظام (Overlap Fix)</span>
+                </div>
+                <p className="text-[11px] text-neutral-300 leading-relaxed">
+                  خلفية الأندرويد الحية تعمل تحت شاشة القفل. لمنع تداخل أرقام الساعة مع ساعة النظام، يمكنك:
+                </p>
+                <ul className="text-[10px] text-neutral-400 space-y-1 list-disc list-inside">
+                  <li><strong className="text-white">الخيار 1:</strong> إيقاف رسم الساعة من استوديو التخصيص أو إعدادات الساعة والاعتماد على ساعة النظام مع الاستمتاع بعمق 3D الكامل للخلفية.</li>
+                  <li><strong className="text-white">الخيار 2:</strong> في أجهزة Samsung (Good Lock / LockStar) و Xiaomi و Pixel: إخفاء ساعة النظام من إعدادات شاشة القفل ليظهر ستايل iOS الأنيق بمفرده.</li>
+                </ul>
               </div>
             </div>
           )}

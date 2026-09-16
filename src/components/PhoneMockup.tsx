@@ -244,7 +244,7 @@ export const PhoneMockup: React.FC<PhoneMockupProps> = ({
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none z-[5]" />
 
         {/* Layer 2: Depth Clock (Behind Subject) */}
-        {config.depthBehindSubject && (
+        {config.depthBehindSubject && config.isClockVisible !== false && (
           <div
             ref={clockBehindRef}
             className="absolute inset-0 z-10 will-change-transform pointer-events-none"
@@ -287,7 +287,7 @@ export const PhoneMockup: React.FC<PhoneMockupProps> = ({
         )}
 
         {/* Fallback Clock on Top (if depthBehindSubject is false) */}
-        {!config.depthBehindSubject && (
+        {!config.depthBehindSubject && config.isClockVisible !== false && (
           <div
             ref={clockFrontRef}
             className="absolute inset-0 z-30 will-change-transform pointer-events-none"

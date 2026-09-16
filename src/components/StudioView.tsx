@@ -315,6 +315,25 @@ export const StudioView: React.FC<StudioViewProps> = ({
                   />
                 </label>
               </div>
+
+              {/* Show/Hide Clock Switch to resolve system UI overlap */}
+              <div className="p-3 rounded-2xl bg-[#181820] border border-amber-500/20 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center space-x-1.5">
+                    <Clock className="w-4 h-4 text-[#FFDE00]" />
+                    <span>Render Custom Clock on Wallpaper</span>
+                  </div>
+                  <div className="text-[10px] text-amber-300/80 mt-0.5">
+                    Disable if system lock screen time overlaps with wallpaper clock
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={config.isClockVisible !== false}
+                  onChange={(e) => updateConfig('isClockVisible', e.target.checked)}
+                  className="w-5 h-5 accent-[#FFDE00] rounded cursor-pointer"
+                />
+              </div>
             </div>
           )}
 

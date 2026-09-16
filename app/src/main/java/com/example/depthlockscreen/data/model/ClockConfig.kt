@@ -18,8 +18,8 @@ data class ClockConfig(
     val customTimeText: String = "02:36",
     val is24HourFormat: Boolean = true,
     val showSeconds: Boolean = false,
-    // Backwards compatibility properties
     val isClockVisible: Boolean = true,
+    // Backwards compatibility properties
     val fontSizeSp: Float = 88f,
     val verticalBias: Float = 0.28f,
     val parallaxStrength: Float = 1.0f,

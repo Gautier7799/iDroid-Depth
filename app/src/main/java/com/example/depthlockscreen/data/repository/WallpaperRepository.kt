@@ -64,6 +64,7 @@ class WallpaperRepository(private val context: Context) {
             .putString("customTimeText", config.customTimeText)
             .putBoolean("is24HourFormat", config.is24HourFormat)
             .putBoolean("showSeconds", config.showSeconds)
+            .putBoolean("isClockVisible", config.isClockVisible)
             .putBoolean("isBehindSubject", config.depthBehindSubject)
             .putFloat("verticalBias", config.verticalPosPercent / 100f)
             .apply()
@@ -94,6 +95,7 @@ class WallpaperRepository(private val context: Context) {
             customTimeText = prefs.getString("customTimeText", "02:36") ?: "02:36",
             is24HourFormat = prefs.getBoolean("is24HourFormat", true),
             showSeconds = prefs.getBoolean("showSeconds", false),
+            isClockVisible = prefs.getBoolean("isClockVisible", true),
             isBehindSubject = depth,
             verticalBias = vPos / 100f
         )

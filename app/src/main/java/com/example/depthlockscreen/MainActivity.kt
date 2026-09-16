@@ -1548,6 +1548,27 @@ fun SettingsScreen(
 
             // Accordion 2: Clock Settings
             SettingsAccordionItem("Clock Settings", Icons.Default.Schedule) {
+                // Enable/Disable Custom Wallpaper Clock (System Overlap Solution)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Draw In-App Clock", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Turn OFF if you already have the Android system clock on lock screen", color = Color(0xFFFBBF24), fontSize = 10.sp)
+                    }
+                    Switch(
+                        checked = clockConfig.isClockVisible,
+                        onCheckedChange = { onConfigChanged(clockConfig.copy(isClockVisible = it)) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.Black, checkedTrackColor = vibrantYellow)
+                    )
+                }
+
+                HorizontalDivider(color = Color(0xFF222222), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+
                 // 24-Hour Format
                 Row(
                     modifier = Modifier

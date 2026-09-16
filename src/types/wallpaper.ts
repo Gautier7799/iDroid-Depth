@@ -40,6 +40,7 @@ export interface WallpaperConfig {
   customTimeText: string;
   is24Hour: boolean;
   showSeconds: boolean;
+  isClockVisible?: boolean;
   blurBackground: number;
 
   // Professional customization upgrades
