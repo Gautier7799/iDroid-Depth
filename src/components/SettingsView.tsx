@@ -126,6 +126,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   GRANTED
                 </span>
               </div>
+
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <div className="font-semibold text-white">System Overlay (Superposition)</div>
+                  <div className="text-[11px] text-neutral-400">Draw interactive iOS-style 3D clock depth over lockscreen</div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-green-500/20 text-green-400 font-bold text-[10px]">
+                  ENABLED
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-1">
+                <div>
+                  <div className="font-semibold text-white">Lockscreen Integration (Accessibilité)</div>
+                  <div className="text-[11px] text-neutral-400">Deep system lock/wake event hook without background lag</div>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-yellow-400/20 text-yellow-400 font-bold text-[10px]">
+                  ACTIVE
+                </span>
+              </div>
             </div>
           )}
         </div>

@@ -94,7 +94,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     liveRoll = liveRoll.floatValue,
                     livePitch = livePitch.floatValue,
                     onSetLiveWallpaper = { launchLiveWallpaperChooser() },
-                    onRequestBatteryWhitelist = { requestBatteryWhitelist() }
+                    onRequestBatteryWhitelist = { requestBatteryWhitelist() },
+                    onRequestOverlay = { requestOverlayPermission() },
+                    onRequestAccessibility = { requestAccessibilityPermission() }
                 )
             }
         }
@@ -160,6 +162,31 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             }
         }
     }
+
+    private fun requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+                Toast.makeText(this, "يرجى منح إذن الظهور فوق التطبيقات (Overlay) لتفعيل طبقات العمق", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "إذن الظهور فوق التطبيقات (Overlay) مفعّل بالفعل", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun requestAccessibilityPermission() {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            startActivity(intent)
+            Toast.makeText(this, "ابحث عن 'Depth Wallpapers' وقم بتفعيل إمكانية الوصول للدمج مع شاشة القفل", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "تعذر فتح إعدادات إمكانية الوصول", Toast.LENGTH_SHORT).show()
+        }
+    }
 }
 
 enum class NavigationTab { COLLECTION, WALLPAPERS, STUDIO, SETTINGS }
@@ -169,7 +196,9 @@ fun DepthWallpapersMainScreen(
     liveRoll: Float,
     livePitch: Float,
     onSetLiveWallpaper: () -> Unit,
-    onRequestBatteryWhitelist: () -> Unit
+    onRequestBatteryWhitelist: () -> Unit,
+    onRequestOverlay: () -> Unit = {},
+    onRequestAccessibility: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -346,6 +375,8 @@ fun DepthWallpapersMainScreen(
                 NavigationTab.SETTINGS -> {
                     SettingsScreen(
                         onRequestBatteryWhitelist = onRequestBatteryWhitelist,
+                        onRequestOverlay = onRequestOverlay,
+                        onRequestAccessibility = onRequestAccessibility,
                         onSetLiveWallpaper = onSetLiveWallpaper,
                         clockConfig = clockConfig,
                         onConfigChanged = { newCfg ->
@@ -1163,6 +1194,8 @@ fun StudioScreen(
 @Composable
 fun SettingsScreen(
     onRequestBatteryWhitelist: () -> Unit,
+    onRequestOverlay: () -> Unit = {},
+    onRequestAccessibility: () -> Unit = {},
     onSetLiveWallpaper: () -> Unit,
     clockConfig: ClockConfig,
     onConfigChanged: (ClockConfig) -> Unit,
@@ -1205,6 +1238,16 @@ fun SettingsScreen(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
                 pm.isIgnoringBatteryOptimizations(context.packageName)
+            } else {
+                true
+            }
+        )
+    }
+
+    val hasOverlayPermission = remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Settings.canDrawOverlays(context)
             } else {
                 true
             }
@@ -1433,6 +1476,72 @@ fun SettingsScreen(
                             fontSize = 10.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFF222222), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                // Superposition / System Overlay Permission (Superposition)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("System Overlay (Superposition)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Draw over lockscreen & apps for interactive iOS-style 3D clock depth", color = Color.Gray, fontSize = 10.sp)
+                    }
+                    if (hasOverlayPermission.value) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF1B3820),
+                            border = BorderStroke(1.dp, Color(0xFF22C55E))
+                        ) {
+                            Text(
+                                text = "GRANTED",
+                                color = Color(0xFF22C55E),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = { onRequestOverlay() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E2E34)),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) {
+                            Text("GRANT", color = vibrantYellow, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFF222222), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+
+                // Accessibility Service (Accessibilité / System Lockscreen Integration)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Lock Screen Integration (Accessibilité)", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Seamless native lock event detection & instant screen wakeup layering", color = Color.Gray, fontSize = 10.sp)
+                    }
+                    Button(
+                        onClick = { onRequestAccessibility() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E2E34)),
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.height(30.dp)
+                    ) {
+                        Text("CONFIGURE", color = vibrantYellow, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                     }
                 }
             }
