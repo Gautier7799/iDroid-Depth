@@ -31,6 +31,10 @@ class SubjectSegmenterHelper(context: Context) {
         return generateFocalCutout(originalBitmap)
     }
 
+    suspend fun extractSubject(originalBitmap: Bitmap): Bitmap {
+        return extractForegroundSubject(originalBitmap)
+    }
+
     private fun generateFocalCutout(original: Bitmap): Bitmap {
         val result = Bitmap.createBitmap(original.width, original.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)

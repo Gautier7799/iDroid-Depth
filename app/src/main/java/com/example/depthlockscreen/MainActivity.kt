@@ -199,9 +199,9 @@ fun DepthWallpapersMainScreen(
                     val original = BitmapFactory.decodeStream(stream)
                     if (original != null) {
                         bgBitmap = original
-                        val subject = segmenter.extractSubject(original)
+                        val subject = segmenter.extractForegroundSubject(original)
                         fgBitmap = subject
-                        repo.saveAssets(original, subject ?: original, clockConfig)
+                        repo.saveAssets(original, subject, clockConfig)
                         Toast.makeText(context, "تم استخراج العنصر وتطبيق تأثير العمق بنجاح!", Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
@@ -533,7 +533,7 @@ fun WallpapersScreen(
                                     Brush.verticalGradient(
                                         listOf(
                                             Color(0xFF1E293B),
-                                            Color.parseColor(item.accentColorHex).copy(alpha = 0.5f),
+                                            safeHexToColor(item.accentColorHex).copy(alpha = 0.5f),
                                             Color(0xFF0F172A)
                                         )
                                     )
@@ -555,7 +555,7 @@ fun WallpapersScreen(
                             )
                             Text(
                                 text = item.defaultTimeText,
-                                color = Color.parseColor(item.accentColorHex),
+                                color = safeHexToColor(item.accentColorHex),
                                 fontSize = 42.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.sp
@@ -722,7 +722,7 @@ fun CollectionScreen(
                                         ) {
                                             Text(
                                                 text = wp.defaultTimeText,
-                                                color = Color.parseColor(wp.accentColorHex),
+                                                color = safeHexToColor(wp.accentColorHex),
                                                 fontSize = 28.sp,
                                                 fontWeight = FontWeight.Black
                                             )
@@ -1286,5 +1286,13 @@ fun SettingsAccordionItem(
                 )
             }
         }
+    }
+}
+
+private fun safeHexToColor(hex: String, defaultColor: Color = Color.White): Color {
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (e: Exception) {
+        defaultColor
     }
 }
