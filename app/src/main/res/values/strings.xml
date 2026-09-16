@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Depth Wallpapers</string>
+    <string name="wallpaper_author">Depth Studio</string>
     <string name="wallpaper_description">خلفية قفل الشاشة ثلاثية الأبعاد وساعة العمق التفاعلية - Depth Wallpapers Live Clock</string>
 </resources>
